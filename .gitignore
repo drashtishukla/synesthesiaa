@@ -11,6 +11,8 @@
 .DS_Store
 *.pem
 the-everything-assistant/
+ytmusic_headers.json
+secrets/
 
 # debug
 npm-debug.log*
@@ -22,9 +24,20 @@ pnpm-debug.log*
 .env
 .env.local
 .env*.local
+.env.production
+.env.development
 
 # convex
 .convex
 
 # typescript
 *.tsbuildinfo
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# system
+Thumbs.db

@@ -225,6 +225,10 @@ export default function RoomPage({ params }: RoomPageProps) {
       setYoutubeError("Room or user not ready yet.");
       return;
     }
+    if (!allowGuestAdd) {
+      setYoutubeError("Guests cannot add songs in this room.");
+      return;
+    }
 
     setYoutubeError(null);
     try {

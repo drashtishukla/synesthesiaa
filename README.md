@@ -40,6 +40,13 @@ To enable search inside rooms:
 - Create a YouTube Data API key.
 - Add `YOUTUBE_API_KEY` to `.env.local`.
 
+### YouTube Search (YT Music fallback)
+If you want search without a YouTube Data API key, you can use `ytmusicapi`.
+- Generate headers with `ytmusicapi` (creates a headers JSON file).
+- Install the fallback dependency: `pip install -r scripts/requirements.txt`
+- Set `YTMUSIC_HEADERS_PATH` to the headers JSON path.
+- Optional: set `YTMUSIC_PYTHON` if your Python binary is not `python`.
+
 ## Project Structure
 - `app/` Next.js App Router UI
 - `convex/` Convex schema + server functions
