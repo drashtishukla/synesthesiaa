@@ -77,7 +77,7 @@ export default function Home() {
               {[
                 "Convex realtime backend",
                 "Vote-based ordering",
-                "Host-controlled playback",
+                "YouTube playback",
               ].map((item) => (
                 <div
                   key={item}

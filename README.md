@@ -30,16 +30,15 @@ pnpm dev
 
 Copy `.env.example` to `.env.local` if you need to pre-create the file. Convex will populate `CONVEX_DEPLOYMENT` and `NEXT_PUBLIC_CONVEX_URL` during setup.
 
-### Spotify Search (Optional)
-To enable Spotify search in rooms:
-- Create a Spotify app in the Spotify Developer Dashboard.
-- Add `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` to `.env.local`.
+### YouTube Playback (Embed)
+YouTube playback uses iframe embeds directly in the room view.
+- Add songs by pasting a YouTube URL or ID.
+- The top YouTube track in the queue is embedded for playback.
 
-### Spotify Playback (Host)
-To enable host playback controls:
-- Set `SPOTIFY_REDIRECT_URI` (e.g. `http://localhost:3000/api/spotify/callback`).
-- The host must connect a Spotify Premium account (Spotify Connect required).
-- Make sure the redirect URI is added in your Spotify app settings.
+### YouTube Search (API)
+To enable search inside rooms:
+- Create a YouTube Data API key.
+- Add `YOUTUBE_API_KEY` to `.env.local`.
 
 ## Project Structure
 - `app/` Next.js App Router UI

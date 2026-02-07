@@ -4,11 +4,7 @@ import { v } from "convex/values";
 export const addSong = mutation({
   args: {
     roomId: v.id("rooms"),
-    provider: v.union(
-      v.literal("spotify"),
-      v.literal("youtube"),
-      v.literal("custom")
-    ),
+    provider: v.union(v.literal("youtube"), v.literal("custom")),
     providerId: v.string(),
     title: v.string(),
     artist: v.optional(v.string()),

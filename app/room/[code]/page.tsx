@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,21 +23,11 @@ type RoomPageProps = {
   params: { code: string };
 };
 
-type SpotifyResult = {
+type YouTubeResult = {
   id: string;
   title: string;
-  artist: string;
-  albumArtUrl?: string;
-  durationMs: number;
-};
-
-type SpotifyDevice = {
-  id: string;
-  name: string;
-  type: string;
-  is_active: boolean;
-  volume_percent?: number;
-  is_restricted?: boolean;
+  channel: string;
+  thumbnailUrl?: string;
 };
 
 function createProviderId() {
@@ -45,6 +35,37 @@ function createProviderId() {
     return crypto.randomUUID();
   }
   return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function extractYouTubeId(input: string) {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.replace("www.", "");
+    if (host === "youtu.be") {
+      return url.pathname.replace("/", "");
+    }
+    if (host.endsWith("youtube.com")) {
+      const v = url.searchParams.get("v");
+      if (v) return v;
+      if (url.pathname.startsWith("/embed/")) {
+        return url.pathname.split("/embed/")[1] ?? null;
+      }
+      if (url.pathname.startsWith("/shorts/")) {
+        return url.pathname.split("/shorts/")[1] ?? null;
+      }
+    }
+  } catch (err) {
+    return null;
+  }
+
+  return null;
 }
 
 export default function RoomPage({ params }: RoomPageProps) {
@@ -67,15 +88,16 @@ export default function RoomPage({ params }: RoomPageProps) {
   const [artist, setArtist] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeTitle, setYoutubeTitle] = useState("");
+  const [youtubeArtist, setYoutubeArtist] = useState("");
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [isAddingYoutube, setIsAddingYoutube] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SpotifyResult[]>([]);
+  const [searchResults, setSearchResults] = useState<YouTubeResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [spotifyConnected, setSpotifyConnected] = useState<boolean | null>(null);
-  const [devices, setDevices] = useState<SpotifyDevice[]>([]);
-  const [deviceId, setDeviceId] = useState("");
-  const [spotifyBusy, setSpotifyBusy] = useState(false);
-  const [spotifyError, setSpotifyError] = useState<string | null>(null);
 
   const voteMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -85,8 +107,7 @@ export default function RoomPage({ params }: RoomPageProps) {
     return map;
   }, [votes]);
 
-  const isHost = Boolean(userId && room?.hostUserId === userId);
-  const topSpotifyTrack = songs?.find((song) => song.provider === "spotify");
+  const topYouTubeTrack = songs?.find((song) => song.provider === "youtube");
 
   const handleAddSong = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -125,6 +146,52 @@ export default function RoomPage({ params }: RoomPageProps) {
     }
   };
 
+  const handleAddYouTube = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!room) {
+      setYoutubeError("Room not ready yet.");
+      return;
+    }
+    if (!userId) {
+      setYoutubeError("Generating your user id. Try again in a second.");
+      return;
+    }
+
+    const id = extractYouTubeId(youtubeUrl);
+    if (!id) {
+      setYoutubeError("Paste a valid YouTube URL or video ID.");
+      return;
+    }
+
+    const name = youtubeTitle.trim();
+    if (!name) {
+      setYoutubeError("Add a title for this track.");
+      return;
+    }
+
+    setYoutubeError(null);
+    setIsAddingYoutube(true);
+    try {
+      await addSong({
+        roomId: room._id,
+        provider: "youtube",
+        providerId: id,
+        title: name,
+        artist: youtubeArtist.trim() || undefined,
+        addedBy: userId,
+      });
+      setYoutubeUrl("");
+      setYoutubeTitle("");
+      setYoutubeArtist("");
+    } catch (err) {
+      setYoutubeError(
+        err instanceof Error ? err.message : "Unable to add YouTube track."
+      );
+    } finally {
+      setIsAddingYoutube(false);
+    }
+  };
+
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = searchQuery.trim();
@@ -137,7 +204,7 @@ export default function RoomPage({ params }: RoomPageProps) {
     setIsSearching(true);
     try {
       const response = await fetch(
-        `/api/spotify/search?q=${encodeURIComponent(query)}`
+        `/api/youtube/search?q=${encodeURIComponent(query)}`
       );
       const data = await response.json();
       if (!response.ok) {
@@ -146,176 +213,34 @@ export default function RoomPage({ params }: RoomPageProps) {
       setSearchResults(data.results ?? []);
     } catch (err) {
       setSearchError(
-        err instanceof Error ? err.message : "Unable to search Spotify."
+        err instanceof Error ? err.message : "Unable to search YouTube."
       );
     } finally {
       setIsSearching(false);
     }
   };
 
-  const handleAddSpotify = async (track: SpotifyResult) => {
+  const handleAddFromSearch = async (track: YouTubeResult) => {
     if (!room || !userId) {
-      setError("Room or user not ready yet.");
-      return;
-    }
-    if (!allowGuestAdd && userId !== room.hostUserId) {
-      setError("Guests cannot add songs in this room.");
+      setYoutubeError("Room or user not ready yet.");
       return;
     }
 
-    setError(null);
+    setYoutubeError(null);
     try {
       await addSong({
         roomId: room._id,
-        provider: "spotify",
+        provider: "youtube",
         providerId: track.id,
         title: track.title,
-        artist: track.artist,
-        albumArtUrl: track.albumArtUrl,
-        durationMs: track.durationMs,
+        artist: track.channel,
+        albumArtUrl: track.thumbnailUrl,
         addedBy: userId,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to add song.");
-    }
-  };
-
-  useEffect(() => {
-    if (!isHost) {
-      return;
-    }
-
-    let cancelled = false;
-    const loadSession = async () => {
-      try {
-        const response = await fetch("/api/spotify/session");
-        const data = await response.json();
-        if (!cancelled) {
-          setSpotifyConnected(Boolean(data.connected));
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setSpotifyConnected(false);
-        }
-      }
-    };
-
-    loadSession();
-    return () => {
-      cancelled = true;
-    };
-  }, [isHost]);
-
-  const refreshDevices = async () => {
-    setSpotifyError(null);
-    setSpotifyBusy(true);
-    try {
-      const response = await fetch("/api/spotify/devices");
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Unable to load devices.");
-      }
-      const list: SpotifyDevice[] = data.devices ?? [];
-      setDevices(list);
-      const active = list.find((device) => device.is_active);
-      setDeviceId((prev) => prev || active?.id || list[0]?.id || "");
-    } catch (err) {
-      setSpotifyError(
-        err instanceof Error ? err.message : "Unable to load devices."
+      setYoutubeError(
+        err instanceof Error ? err.message : "Unable to add YouTube track."
       );
-    } finally {
-      setSpotifyBusy(false);
-    }
-  };
-
-  useEffect(() => {
-    if (spotifyConnected) {
-      void refreshDevices();
-    }
-  }, [spotifyConnected]);
-
-  const handleTransfer = async () => {
-    if (!deviceId) {
-      setSpotifyError("Select a device first.");
-      return;
-    }
-    setSpotifyError(null);
-    setSpotifyBusy(true);
-    try {
-      const response = await fetch("/api/spotify/transfer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceId, play: true }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Transfer failed.");
-      }
-    } catch (err) {
-      setSpotifyError(
-        err instanceof Error ? err.message : "Transfer failed."
-      );
-    } finally {
-      setSpotifyBusy(false);
-    }
-  };
-
-  const handlePlayTop = async () => {
-    if (!topSpotifyTrack) {
-      setSpotifyError("No Spotify tracks in the queue yet.");
-      return;
-    }
-    setSpotifyError(null);
-    setSpotifyBusy(true);
-    try {
-      const response = await fetch("/api/spotify/play", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deviceId: deviceId || undefined,
-          uri: `spotify:track:${topSpotifyTrack.providerId}`,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Play failed.");
-      }
-    } catch (err) {
-      setSpotifyError(err instanceof Error ? err.message : "Play failed.");
-    } finally {
-      setSpotifyBusy(false);
-    }
-  };
-
-  const handlePause = async () => {
-    setSpotifyError(null);
-    setSpotifyBusy(true);
-    try {
-      const response = await fetch("/api/spotify/pause", { method: "POST" });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Pause failed.");
-      }
-    } catch (err) {
-      setSpotifyError(err instanceof Error ? err.message : "Pause failed.");
-    } finally {
-      setSpotifyBusy(false);
-    }
-  };
-
-  const handleNext = async () => {
-    setSpotifyError(null);
-    setSpotifyBusy(true);
-    try {
-      const response = await fetch("/api/spotify/next", { method: "POST" });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Next failed.");
-      }
-    } catch (err) {
-      setSpotifyError(err instanceof Error ? err.message : "Next failed.");
-    } finally {
-      setSpotifyBusy(false);
     }
   };
 
@@ -372,9 +297,6 @@ export default function RoomPage({ params }: RoomPageProps) {
   }
 
   const allowGuestAdd = room.settings.allowGuestAdd;
-  const connectUrl = userId
-    ? `/api/spotify/login?room=${room.code}&user=${userId}`
-    : "#";
 
   return (
     <main className="min-h-screen">
@@ -406,116 +328,47 @@ export default function RoomPage({ params }: RoomPageProps) {
           </CardHeader>
         </Card>
 
-        {isHost ? (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <CardTitle>Host playback</CardTitle>
-                  <CardDescription>
-                    Connect Spotify and control playback from this room.
-                  </CardDescription>
+        <Card>
+          <CardHeader>
+            <CardTitle>Playback</CardTitle>
+            <CardDescription>
+              YouTube embed for the top video in the queue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {topYouTubeTrack ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Now playing</p>
+                    <p className="text-lg font-semibold">
+                      {topYouTubeTrack.title}
+                    </p>
+                    {topYouTubeTrack.artist ? (
+                      <p className="text-sm text-muted-foreground">
+                        {topYouTubeTrack.artist}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Badge variant="outline">YouTube</Badge>
                 </div>
-                <Badge variant="outline">
-                  {spotifyConnected === null
-                    ? "Checking..."
-                    : spotifyConnected
-                      ? "Connected"
-                      : "Not connected"}
-                </Badge>
+                <div className="aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                  <iframe
+                    className="h-full w-full"
+                    src={`https://www.youtube.com/embed/${topYouTubeTrack.providerId}?rel=0`}
+                    title={topYouTubeTrack.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!spotifyConnected ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button asChild>
-                    <Link href={connectUrl}>Connect Spotify</Link>
-                  </Button>
-                  <p className="text-sm text-muted-foreground">
-                    Requires a Spotify Premium account to control playback.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-end gap-3">
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor="device-select">Playback device</Label>
-                      <select
-                        id="device-select"
-                        className="h-11 w-full rounded-xl border border-border/60 bg-background/60 px-3 text-sm text-foreground"
-                        value={deviceId}
-                        onChange={(event) => setDeviceId(event.target.value)}
-                      >
-                        <option value="">Select a device</option>
-                        {devices.map((device) => (
-                          <option key={device.id} value={device.id}>
-                            {device.name} {device.is_active ? "(active)" : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={refreshDevices}
-                      disabled={spotifyBusy}
-                      type="button"
-                    >
-                      Refresh devices
-                    </Button>
-                    <Button
-                      onClick={handleTransfer}
-                      disabled={spotifyBusy || !deviceId}
-                      type="button"
-                    >
-                      Transfer
-                    </Button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button
-                      onClick={handlePlayTop}
-                      disabled={spotifyBusy || !topSpotifyTrack}
-                      type="button"
-                    >
-                      Play top queue track
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handlePause}
-                      disabled={spotifyBusy}
-                      type="button"
-                    >
-                      Pause
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleNext}
-                      disabled={spotifyBusy}
-                      type="button"
-                    >
-                      Next
-                    </Button>
-                    {topSpotifyTrack ? (
-                      <span className="text-sm text-muted-foreground">
-                        Next up: {topSpotifyTrack.title}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        Add a Spotify track to enable play.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {spotifyError ? (
-                <p className="text-sm text-destructive-foreground">
-                  {spotifyError}
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-        ) : null}
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No YouTube tracks yet. Add one to enable playback.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <Card className="order-last lg:order-first">
@@ -547,6 +400,11 @@ export default function RoomPage({ params }: RoomPageProps) {
                             {song.artist}
                           </p>
                         ) : null}
+                        <p className="text-xs text-muted-foreground">
+                          {song.provider === "youtube"
+                            ? "YouTube"
+                            : "Custom"}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
@@ -586,19 +444,19 @@ export default function RoomPage({ params }: RoomPageProps) {
             <CardHeader>
               <CardTitle>Add a song</CardTitle>
               <CardDescription>
-                Search Spotify or add a custom track.
+                Add YouTube links for playback, or a custom track.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
                 <form className="space-y-4" onSubmit={handleSearch}>
                   <div className="space-y-2">
-                    <Label htmlFor="spotify-search">Search Spotify</Label>
+                    <Label htmlFor="youtube-search">Search YouTube</Label>
                     <Input
-                      id="spotify-search"
+                      id="youtube-search"
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="Search tracks or artists"
+                      placeholder="Search for a track"
                     />
                   </div>
                   <Button
@@ -621,9 +479,9 @@ export default function RoomPage({ params }: RoomPageProps) {
                           className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
                         >
                           <div className="h-10 w-10 overflow-hidden rounded-lg bg-black/30">
-                            {track.albumArtUrl ? (
+                            {track.thumbnailUrl ? (
                               <img
-                                src={track.albumArtUrl}
+                                src={track.thumbnailUrl}
                                 alt={track.title}
                                 className="h-full w-full object-cover"
                               />
@@ -634,12 +492,12 @@ export default function RoomPage({ params }: RoomPageProps) {
                               {track.title}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {track.artist}
+                              {track.channel}
                             </p>
                           </div>
                           <Button
                             size="sm"
-                            onClick={() => handleAddSpotify(track)}
+                            onClick={() => handleAddFromSearch(track)}
                             disabled={!allowGuestAdd || !userId}
                             type="button"
                           >
@@ -653,9 +511,57 @@ export default function RoomPage({ params }: RoomPageProps) {
 
                 <div className="h-px w-full bg-white/5" />
 
+                <form className="space-y-4" onSubmit={handleAddYouTube}>
+                  <div className="space-y-2">
+                    <Label htmlFor="youtube-url">YouTube URL or ID</Label>
+                    <Input
+                      id="youtube-url"
+                      value={youtubeUrl}
+                      onChange={(event) => setYoutubeUrl(event.target.value)}
+                      placeholder="https://youtu.be/..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="youtube-title">Title</Label>
+                    <Input
+                      id="youtube-title"
+                      value={youtubeTitle}
+                      onChange={(event) => setYoutubeTitle(event.target.value)}
+                      placeholder="Track title"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="youtube-artist">Artist / Channel</Label>
+                    <Input
+                      id="youtube-artist"
+                      value={youtubeArtist}
+                      onChange={(event) => setYoutubeArtist(event.target.value)}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isAddingYoutube || !allowGuestAdd}
+                    className="w-full"
+                  >
+                    {allowGuestAdd
+                      ? isAddingYoutube
+                        ? "Adding..."
+                        : "Add YouTube track"
+                      : "Guest add disabled"}
+                  </Button>
+                  {youtubeError ? (
+                    <p className="text-sm text-destructive-foreground">
+                      {youtubeError}
+                    </p>
+                  ) : null}
+                </form>
+
+                <div className="h-px w-full bg-white/5" />
+
                 <form className="space-y-4" onSubmit={handleAddSong}>
                   <div className="space-y-2">
-                    <Label htmlFor="song-title">Manual title</Label>
+                    <Label htmlFor="song-title">Custom title</Label>
                     <Input
                       id="song-title"
                       value={title}
@@ -664,7 +570,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="song-artist">Manual artist</Label>
+                    <Label htmlFor="song-artist">Custom artist</Label>
                     <Input
                       id="song-artist"
                       value={artist}
@@ -680,7 +586,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                     {allowGuestAdd
                       ? isAdding
                         ? "Adding..."
-                        : "Add manually"
+                        : "Add custom track"
                       : "Guest add disabled"}
                   </Button>
                 </form>
@@ -696,19 +602,6 @@ export default function RoomPage({ params }: RoomPageProps) {
             </CardContent>
           </Card>
         ) : null}
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Playback</CardTitle>
-            <CardDescription>
-              Synesthesia decides the next track, not how it streams.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Use Spotify Connect, YouTube, or another provider on the host device
-            to play the queue in real time.
-          </CardContent>
-        </Card>
       </div>
     </main>
   );

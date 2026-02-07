@@ -10,6 +10,7 @@
 # misc
 .DS_Store
 *.pem
+the-everything-assistant/
 
 # debug
 npm-debug.log*
