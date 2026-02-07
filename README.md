@@ -12,6 +12,7 @@ Synesthesia is a real-time, crowd-controlled music queue. Hosts create a room, g
 ## Tech Stack
 - Next.js (App Router)
 - TypeScript
+- Tailwind CSS + shadcn/ui
 - Convex (real-time backend)
 
 ## Quick Start
@@ -28,6 +29,17 @@ pnpm dev
 ```
 
 Copy `.env.example` to `.env.local` if you need to pre-create the file. Convex will populate `CONVEX_DEPLOYMENT` and `NEXT_PUBLIC_CONVEX_URL` during setup.
+
+### Spotify Search (Optional)
+To enable Spotify search in rooms:
+- Create a Spotify app in the Spotify Developer Dashboard.
+- Add `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` to `.env.local`.
+
+### Spotify Playback (Host)
+To enable host playback controls:
+- Set `SPOTIFY_REDIRECT_URI` (e.g. `http://localhost:3000/api/spotify/callback`).
+- The host must connect a Spotify Premium account (Spotify Connect required).
+- Make sure the redirect URI is added in your Spotify app settings.
 
 ## Project Structure
 - `app/` Next.js App Router UI
