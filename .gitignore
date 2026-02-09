@@ -12,6 +12,7 @@
 *.pem
 the-everything-assistant/
 ytmusic_headers.json
+browser.json
 secrets/
 
 # debug
