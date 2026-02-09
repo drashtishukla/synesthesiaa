@@ -35,17 +35,27 @@ YouTube playback uses iframe embeds directly in the room view.
 - Add songs by pasting a YouTube URL or ID.
 - The top YouTube track in the queue is embedded for playback.
 
-### YouTube Search (API)
-To enable search inside rooms:
-- Create a YouTube Data API key.
-- Add `YOUTUBE_API_KEY` to `.env.local`.
+### YouTube Search (Logic + Setup)
+Search hits `GET /api/youtube/search?q=...` and returns up to 8 results with
+`id`, `title`, `channel`, and `thumbnailUrl`. The route tries the YouTube Data
+API first, then falls back to YT Music if needed.
 
-### YouTube Search (YT Music fallback)
-If you want search without a YouTube Data API key, you can use `ytmusicapi`.
-- Generate headers with `ytmusicapi` (creates a headers JSON file).
-- Install the fallback dependency: `pip install -r scripts/requirements.txt`
-- Set `YTMUSIC_HEADERS_PATH` to the headers JSON path.
-- Optional: set `YTMUSIC_PYTHON` if your Python binary is not `python`.
+Primary path (YouTube Data API):
+- Requires `YOUTUBE_API_KEY` in `.env.local`.
+- Uses the YouTube Search API with `videoEmbeddable=true` and safe search.
+- If the API call fails, the request can fall back to YT Music.
+
+Fallback path (YT Music via `ytmusicapi`):
+- Requires `YTMUSIC_HEADERS_PATH` to a headers JSON file.
+- Runs `scripts/ytmusic_search.py` with `python` (override via `YTMUSIC_PYTHON`).
+- Calls `ytmusicapi` search with `filter="songs"` and `limit=8`.
+
+YT Music setup:
+1. Install the Python dependency: `pip install -r scripts/requirements.txt`.
+2. Generate a headers JSON file using `ytmusicapi` from a logged-in browser
+   session (see ytmusicapi docs for the exact command).
+3. Set `YTMUSIC_HEADERS_PATH` to the headers JSON file path.
+4. Optional: set `YTMUSIC_PYTHON` if your Python binary is not `python`.
 
 ## Project Structure
 - `app/` Next.js App Router UI
