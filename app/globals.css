@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 222 20% 4%;
-    --foreground: 210 20% 96%;
-    --card: 222 18% 8%;
-    --card-foreground: 210 20% 96%;
-    --popover: 222 18% 8%;
-    --popover-foreground: 210 20% 96%;
-    --primary: 142 72% 45%;
-    --primary-foreground: 222 20% 6%;
-    --secondary: 152 52% 35%;
-    --secondary-foreground: 210 20% 98%;
-    --accent: 168 50% 32%;
-    --accent-foreground: 210 20% 98%;
-    --muted: 220 12% 16%;
-    --muted-foreground: 214 16% 70%;
-    --destructive: 0 72% 55%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 220 12% 18%;
-    --input: 220 12% 18%;
-    --ring: 142 72% 45%;
-    --radius: 18px;
+    --background: 0 0% 10%;
+    --foreground: 0 0% 88%;
+    --card: 0 0% 16%;
+    --card-foreground: 0 0% 88%;
+    --popover: 0 0% 16%;
+    --popover-foreground: 0 0% 88%;
+    --primary: 1 77% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 92 48% 42%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 63%;
+    --accent: 207 89% 68%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 38 100% 50%;
+    --destructive-foreground: 0 0% 0%;
+    --border: 0 0% 29%;
+    --input: 0 0% 29%;
+    --ring: 1 77% 55%;
+    --radius: 0rem;
   }
 
   * {
@@ -45,12 +45,72 @@
 @layer utilities {
   .bg-grid {
     background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+      linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
     background-size: 32px 32px;
   }
 
+  .glass {
+    background: rgba(42, 42, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-hover:hover {
+    background: rgba(50, 50, 50, 0.9);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 30px -8px rgba(229, 57, 53, 0.25);
+  }
+
   .text-glow {
-    text-shadow: 0 0 40px rgba(34, 197, 94, 0.4);
+    text-shadow: 0 0 30px rgba(229, 57, 53, 0.35);
+  }
+
+  .safe-bottom {
+    padding-bottom: max(0.625rem, env(safe-area-inset-bottom));
+  }
+
+  /* Vote animation burst */
+  @keyframes vote-burst {
+    0% { transform: scale(1); }
+    25% { transform: scale(1.4); }
+    50% { transform: scale(0.9); }
+    75% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes vote-ring {
+    0% { transform: scale(0.8); opacity: 0.8; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  @keyframes score-pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+  }
+
+  .animate-vote-burst {
+    animation: vote-burst 0.4s cubic-bezier(0.36, 1.5, 0.6, 1) forwards;
+  }
+
+  .animate-vote-ring {
+    animation: vote-ring 0.5s ease-out forwards;
+  }
+
+  .animate-score-pop {
+    animation: score-pop 0.3s ease-out;
+  }
+
+  /* Audio visualizer bars */
+  @keyframes viz-bar {
+    0%, 100% { height: var(--viz-min, 10%); opacity: 0.5; }
+    50% { height: var(--viz-max, 90%); opacity: 1; }
+  }
+
+  .animate-viz-bar {
+    animation: viz-bar var(--viz-speed, 0.8s) ease-in-out infinite;
   }
 }

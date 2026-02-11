@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
+import { Oxanium, Source_Code_Pro } from "next/font/google";
 import "./globals.css";
 import { ConvexClientProvider } from "./providers";
 
-const display = Space_Grotesk({
+const display = Oxanium({
   subsets: ["latin"],
   variable: "--font-display",
+  weight: ["400", "500", "600", "700", "800"],
 });
 
-const body = Plus_Jakarta_Sans({
+const body = Oxanium({
   subsets: ["latin"],
   variable: "--font-body",
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {

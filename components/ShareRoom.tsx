@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Button } from "@/components/ui/button";
 
 type Props = {
   roomCode: string;
@@ -37,28 +36,24 @@ export default function ShareRoom({ roomCode }: Props) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={handleCopy}
+      <button
         type="button"
-        className="h-7 text-xs"
+        onClick={handleCopy}
+        className="h-7 px-3 text-[11px] font-medium bg-accent text-white hover:brightness-110 border border-accent transition-all duration-200"
       >
         {copied ? "Copied!" : "Copy link"}
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => setShowQR((v) => !v)}
+      </button>
+      <button
         type="button"
-        className="h-7 text-xs"
+        onClick={() => setShowQR((v) => !v)}
+        className="h-7 px-3 text-[11px] font-medium bg-accent text-white hover:brightness-110 border border-accent transition-all duration-200"
       >
         {showQR ? "Hide QR" : "QR Code"}
-      </Button>
+      </button>
 
       {showQR ? (
         <div className="mt-2 w-full flex justify-center">
-          <div className="rounded-2xl bg-white p-3">
+          <div className="bg-white p-3 shadow-lg shadow-primary/15">
             <QRCodeSVG value={url} size={160} />
           </div>
         </div>

@@ -47,14 +47,18 @@ export default function NowPlayingProgress({ player }: Props) {
   if (!player || duration === 0) return null;
 
   return (
-    <div className="space-y-1">
-      <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+    <div className="space-y-1.5">
+      <div className="relative h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
         <div
           className="absolute inset-y-0 left-0 rounded-full bg-primary transition-[width] duration-200"
           style={{ width: `${(progress * 100).toFixed(1)}%` }}
         />
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-primary blur-sm opacity-50 transition-[width] duration-200"
+          style={{ width: `${(progress * 100).toFixed(1)}%` }}
+        />
       </div>
-      <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
+      <div className="flex justify-between text-[10px] text-primary tabular-nums font-mono">
         <span>{fmt(currentTime)}</span>
         <span>{fmt(duration)}</span>
       </div>

@@ -76,21 +76,21 @@ export default function Home() {
             </div>
             <div className="flex flex-wrap gap-3">
               {[
-                "Convex realtime backend",
-                "Vote-based ordering",
-                "YouTube playback",
+                { label: "Convex realtime backend", color: "border-primary bg-primary/20 text-primary" },
+                { label: "Vote-based ordering", color: "border-secondary bg-secondary/20 text-secondary" },
+                { label: "YouTube playback", color: "border-accent bg-accent/20 text-accent" },
               ].map((item) => (
                 <div
-                  key={item}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  key={item.label}
+                  className={`border bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-widest ${item.color}`}
                 >
-                  {item}
+                  {item.label}
                 </div>
               ))}
             </div>
           </div>
 
-          <Card className="relative overflow-hidden border-white/10 bg-white/5">
+          <Card className="relative overflow-hidden border-accent bg-accent/10">
             <CardHeader>
               <CardTitle className="text-2xl">Live room snapshot</CardTitle>
               <CardDescription>
@@ -105,7 +105,7 @@ export default function Home() {
               ].map((song) => (
                 <div
                   key={song.title}
-                  className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                  className="flex items-center justify-between border border-white/10 bg-white/5 px-4 py-3"
                 >
                   <div>
                     <p className="font-semibold">{song.title}</p>
@@ -121,7 +121,7 @@ export default function Home() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-2">
-          <Card className="border-primary/20 bg-primary/5">
+          <Card className="border-primary bg-primary/10">
             <CardHeader>
               <CardTitle>Start a room</CardTitle>
               <CardDescription>
@@ -158,7 +158,7 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          <Card className="border-secondary/20 bg-secondary/5">
+          <Card className="border-secondary bg-secondary/10">
             <CardHeader>
               <CardTitle>Join a room</CardTitle>
               <CardDescription>
@@ -185,7 +185,7 @@ export default function Home() {
         </section>
 
         {error ? (
-          <Card className="border-destructive/40 bg-destructive/10">
+          <Card className="border-destructive bg-destructive/10">
             <CardContent className="py-4 text-sm text-destructive-foreground">
               {error}
             </CardContent>
@@ -198,19 +198,22 @@ export default function Home() {
               title: "Create",
               description:
                 "Spin up a room in seconds. The host keeps playback on their device.",
+              border: "border-primary bg-primary/10",
             },
             {
               title: "Vote",
               description:
                 "Guests add songs and vote to shape the vibe in real time.",
+              border: "border-secondary bg-secondary/10",
             },
             {
               title: "Play",
               description:
                 "Queue order updates instantly so the next track is always crowd-approved.",
+              border: "border-accent bg-accent/10",
             },
           ].map((step) => (
-            <Card key={step.title} className="border-white/5">
+            <Card key={step.title} className={step.border}>
               <CardHeader>
                 <CardTitle>{step.title}</CardTitle>
                 <CardDescription>{step.description}</CardDescription>

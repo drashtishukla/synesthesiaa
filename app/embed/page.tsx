@@ -524,7 +524,7 @@ function EmbedRoom({
             {songs?.length ?? 0} songs
           </Badge>
           {isAdmin && (
-            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] px-1.5 py-0">
+            <Badge className="bg-secondary/20 text-secondary border-secondary/30 text-[10px] px-1.5 py-0">
               ★
             </Badge>
           )}
@@ -840,7 +840,7 @@ function EmbedRoom({
 
       {/* Admin */}
       {activeTab === "admin" && isAdmin && (
-        <div className="space-y-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+        <div className="space-y-3 rounded-xl border border-secondary/20 bg-secondary/5 p-3">
           <p className="text-xs font-semibold flex items-center gap-1">
             <span>★</span> Host Controls
           </p>
