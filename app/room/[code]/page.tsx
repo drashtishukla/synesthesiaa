@@ -86,6 +86,7 @@ export default function RoomPage({ params }: RoomPageProps) {
     room && userId ? { roomId: room._id, userId } : "skip",
   );
 
+
   const addSong = useMutation(api.songs.addSong);
   const removeSong = useMutation(api.songs.removeSong);
   const adminSetScore = useMutation(api.songs.adminSetScore);
@@ -539,11 +540,12 @@ export default function RoomPage({ params }: RoomPageProps) {
                     <p className="text-lg font-semibold text-white drop-shadow">
                       {currentSong.title}
                     </p>
-                    {currentSong.artist ? (
-                      <p className="text-sm text-white/70">
-                        {currentSong.artist}
-                      </p>
-                    ) : null}
+                    <div className="flex flex-wrap gap-2 text-sm text-white/70">
+                      {currentSong.artist && <span>{currentSong.artist}</span>}
+                      {currentSong.addedByName && (
+                        <span className="text-white/50">• Added by {currentSong.addedByName}</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Floating reactions over the thumbnail */}
@@ -606,11 +608,12 @@ export default function RoomPage({ params }: RoomPageProps) {
                         <p className="font-semibold">
                           {index + 1}. {song.title}
                         </p>
-                        {song.artist ? (
-                          <p className="text-sm text-muted-foreground">
-                            {song.artist}
-                          </p>
-                        ) : null}
+                        <div className="text-sm text-muted-foreground">
+                           {song.artist && <span>{song.artist}</span>}
+                           {song.addedByName && (
+                             <span className="ml-2 text-xs opacity-70">• Added by {song.addedByName}</span>
+                           )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {song.provider === "youtube"
                             ? "YouTube"

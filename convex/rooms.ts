@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 
 function generateRoomCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -16,8 +17,8 @@ async function isCodeAvailable(ctx: MutationCtx, code: string) {
 }
 
 /** Throws if the calling user is not the room host. */
-async function requireAdmin(ctx: MutationCtx, roomId: string, userId: string) {
-  const room = await ctx.db.get(roomId as any);
+async function requireAdmin(ctx: MutationCtx, roomId: Id<"rooms">, userId: string) {
+  const room = await ctx.db.get(roomId);
   if (!room) {
     throw new Error("Room not found.");
   }
