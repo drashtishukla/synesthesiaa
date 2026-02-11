@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useUserId } from "@/app/lib/useUserId";
+import YouTube from "react-youtube";
 
 type RoomPageProps = {
   params: { code: string };
@@ -74,11 +75,11 @@ export default function RoomPage({ params }: RoomPageProps) {
   const room = useQuery(api.rooms.getRoomByCode, { code });
   const songs = useQuery(
     api.songs.listQueue,
-    room ? { roomId: room._id } : "skip"
+    room ? { roomId: room._id } : "skip",
   );
   const votes = useQuery(
     api.votes.listVotesForUser,
-    room && userId ? { roomId: room._id, userId } : "skip"
+    room && userId ? { roomId: room._id, userId } : "skip",
   );
 
   const addSong = useMutation(api.songs.addSong);
@@ -107,7 +108,10 @@ export default function RoomPage({ params }: RoomPageProps) {
     return map;
   }, [votes]);
 
-  const topYouTubeTrack = songs?.find((song) => song.provider === "youtube");
+  // Use currentSongId from the room to determine the current song
+  const isHost = userId && room && userId === room.hostUserId;
+  const currentSong = songs?.find((s) => s._id === room?.currentSongId);
+  const advanceSong = useMutation(api.rooms.advanceSong);
 
   const handleAddSong = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -185,7 +189,7 @@ export default function RoomPage({ params }: RoomPageProps) {
       setYoutubeArtist("");
     } catch (err) {
       setYoutubeError(
-        err instanceof Error ? err.message : "Unable to add YouTube track."
+        err instanceof Error ? err.message : "Unable to add YouTube track.",
       );
     } finally {
       setIsAddingYoutube(false);
@@ -204,7 +208,7 @@ export default function RoomPage({ params }: RoomPageProps) {
     setIsSearching(true);
     try {
       const response = await fetch(
-        `/api/youtube/search?q=${encodeURIComponent(query)}`
+        `/api/youtube/search?q=${encodeURIComponent(query)}`,
       );
       const data = await response.json();
       if (!response.ok) {
@@ -213,7 +217,7 @@ export default function RoomPage({ params }: RoomPageProps) {
       setSearchResults(data.results ?? []);
     } catch (err) {
       setSearchError(
-        err instanceof Error ? err.message : "Unable to search YouTube."
+        err instanceof Error ? err.message : "Unable to search YouTube.",
       );
     } finally {
       setIsSearching(false);
@@ -243,7 +247,7 @@ export default function RoomPage({ params }: RoomPageProps) {
       });
     } catch (err) {
       setYoutubeError(
-        err instanceof Error ? err.message : "Unable to add YouTube track."
+        err instanceof Error ? err.message : "Unable to add YouTube track.",
       );
     }
   };
@@ -340,35 +344,43 @@ export default function RoomPage({ params }: RoomPageProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {topYouTubeTrack ? (
+            {currentSong ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm text-muted-foreground">Now playing</p>
-                    <p className="text-lg font-semibold">
-                      {topYouTubeTrack.title}
-                    </p>
-                    {topYouTubeTrack.artist ? (
+                    <p className="text-lg font-semibold">{currentSong.title}</p>
+                    {currentSong.artist ? (
                       <p className="text-sm text-muted-foreground">
-                        {topYouTubeTrack.artist}
+                        {currentSong.artist}
                       </p>
                     ) : null}
                   </div>
                   <Badge variant="outline">YouTube</Badge>
                 </div>
                 <div className="aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-black/40">
-                  <iframe
+                  <YouTube
+                    videoId={currentSong.providerId}
                     className="h-full w-full"
-                    src={`https://www.youtube.com/embed/${topYouTubeTrack.providerId}?rel=0`}
-                    title={topYouTubeTrack.title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
+                    opts={{
+                      width: "100%",
+                      height: "100%",
+                      playerVars: {
+                        autoplay: 1,
+                        rel: 0,
+                      },
+                    }}
+                    onEnd={() => {
+                      if (isHost && room) {
+                        advanceSong({ roomId: room._id });
+                      }
+                    }}
                   />
                 </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                No YouTube tracks yet. Add one to enable playback.
+                Add a song to the queue
               </p>
             )}
           </CardContent>
@@ -405,9 +417,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                           </p>
                         ) : null}
                         <p className="text-xs text-muted-foreground">
-                          {song.provider === "youtube"
-                            ? "YouTube"
-                            : "Custom"}
+                          {song.provider === "youtube" ? "YouTube" : "Custom"}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -425,7 +435,9 @@ export default function RoomPage({ params }: RoomPageProps) {
                         {room.settings.allowDownvotes ? (
                           <Button
                             size="sm"
-                            variant={currentVote === -1 ? "secondary" : "outline"}
+                            variant={
+                              currentVote === -1 ? "secondary" : "outline"
+                            }
                             onClick={() =>
                               handleVote(song._id, currentVote === -1 ? 0 : -1)
                             }

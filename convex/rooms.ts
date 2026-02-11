@@ -70,3 +70,39 @@ export const getRoomByCode = query({
       .unique();
   },
 });
+
+
+export const advanceSong = mutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
+    // Get all songs in the queue, sorted
+    const songs = await ctx.db
+      .query("songs")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+
+    songs.sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score;
+      return a.addedAt - b.addedAt;
+    });
+
+    if (songs.length === 0) {
+      await ctx.db.patch(args.roomId, { currentSongId: undefined });
+      return;
+    }
+
+    // Find the current song
+    const room = await ctx.db.get(args.roomId);
+    let nextSong;
+    if (!room?.currentSongId) {
+      nextSong = songs[0];
+    } else {
+      const idx = songs.findIndex((s) => s._id === room.currentSongId);
+      nextSong = songs[idx + 1] || undefined;
+    }
+
+    await ctx.db.patch(args.roomId, {
+      currentSongId: nextSong ? nextSong._id : undefined,
+    });
+  },
+});

@@ -14,6 +14,7 @@ export default defineSchema({
       allowDownvotes: v.boolean(),
       maxQueueLength: v.number(),
     }),
+    currentSongId: v.optional(v.id("songs")),
   }).index("by_code", ["code"]),
 
   songs: defineTable({
