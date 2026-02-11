@@ -64,9 +64,15 @@ const config: Config = {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-10px)" },
         },
+        "float-up": {
+          "0%": { transform: "translateY(0)", opacity: "1" },
+          "80%": { opacity: "1" },
+          "100%": { transform: "translateY(-320px)", opacity: "0" },
+        },
       },
       animation: {
         float: "float 9s ease-in-out infinite",
+        "float-up": "float-up 3s ease-out forwards",
       },
     },
   },

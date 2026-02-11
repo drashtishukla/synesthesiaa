@@ -20,6 +20,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useUserId, useUserName } from "@/app/lib/useUserId";
 import YouTube from "react-youtube";
+import ReactionOverlay from "@/components/ReactionOverlay";
 
 type RoomPageProps = {
   params: { code: string };
@@ -112,6 +113,8 @@ export default function RoomPage({ params }: RoomPageProps) {
   const [confirmDestroy, setConfirmDestroy] = useState(false);
   const [transferTarget, setTransferTarget] = useState("");
   const [settingsMaxSongs, setSettingsMaxSongs] = useState<string>("");
+
+
 
   // Username prompt state
   const [nameInput, setNameInput] = useState("");
@@ -478,36 +481,43 @@ export default function RoomPage({ params }: RoomPageProps) {
           </CardHeader>
         </Card>
 
-        {/* ── Playback ───────────────────────────────────────────────── */}
+        {/* ── Now Playing ──────────────────────────────────────────── */}
         <Card>
           <CardHeader>
-            <CardTitle>Playback</CardTitle>
-            <CardDescription>
-              YouTube embed for the top video in the queue.
-            </CardDescription>
+            <CardTitle>Now Playing</CardTitle>
           </CardHeader>
           <CardContent>
             {currentSong ? (
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Now playing</p>
-                    <p className="text-lg font-semibold">{currentSong.title}</p>
+                {/* Thumbnail + song info */}
+                <div key={currentSong._id} className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                  <img
+                    src={`https://img.youtube.com/vi/${currentSong.providerId}/hqdefault.jpg`}
+                    alt={currentSong.title}
+                    className="w-full aspect-video object-cover"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 py-3">
+                    <p className="text-lg font-semibold text-white drop-shadow">
+                      {currentSong.title}
+                    </p>
                     {currentSong.artist ? (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-white/70">
                         {currentSong.artist}
                       </p>
                     ) : null}
                   </div>
-                  <Badge variant="outline">YouTube</Badge>
+
+                  {/* Floating reactions over the thumbnail */}
+                  <ReactionOverlay roomId={room._id} userId={userId} />
                 </div>
-                <div className="aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+
+                {/* Hidden audio-only YouTube player */}
+                <div className="h-0 w-0 overflow-hidden">
                   <YouTube
                     videoId={currentSong.providerId}
-                    className="h-full w-full"
                     opts={{
-                      width: "100%",
-                      height: "100%",
+                      width: "1",
+                      height: "1",
                       playerVars: {
                         autoplay: 1,
                         rel: 0,

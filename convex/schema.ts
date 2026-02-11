@@ -45,4 +45,11 @@ export default defineSchema({
   })
     .index("by_song_user", ["songId", "userId"])
     .index("by_room_user", ["roomId", "userId"]),
+
+  reactions: defineTable({
+    roomId: v.id("rooms"),
+    userId: v.string(),
+    emoji: v.string(),
+    createdAt: v.number(),
+  }).index("by_room_time", ["roomId", "createdAt"]),
 });
