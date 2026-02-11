@@ -16,6 +16,7 @@ export default defineSchema({
       maxSongsPerUser: v.optional(v.number()),
     }),
     currentSongId: v.optional(v.id("songs")),
+    isPaused: v.optional(v.boolean()),
   }).index("by_code", ["code"]),
 
   songs: defineTable({

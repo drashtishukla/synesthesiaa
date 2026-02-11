@@ -117,8 +117,6 @@ export default function RoomPage({ params }: RoomPageProps) {
   const [transferTarget, setTransferTarget] = useState("");
   const [settingsMaxSongs, setSettingsMaxSongs] = useState<string>("");
 
-<<<<<<< Updated upstream
-=======
   // YouTube player ref for progress bar & playback control
   const [ytPlayer, setYtPlayer] = useState<{
     getCurrentTime: () => number;
@@ -129,14 +127,25 @@ export default function RoomPage({ params }: RoomPageProps) {
     setVolume: (v: number) => void;
     getVolume: () => number;
   } | null>(null);
-  const [isPlaying, setIsPlaying] = useState(true);
+
+  // Sync pause state from server to local YouTube player
+  useEffect(() => {
+    if (!ytPlayer) return;
+    const paused = room?.isPaused ?? false;
+    try {
+      if (paused) {
+        ytPlayer.pauseVideo();
+      } else {
+        ytPlayer.playVideo();
+      }
+    } catch { /* player not ready */ }
+  }, [ytPlayer, room?.isPaused]);
 
   // Drag & drop state for queue reorder (host only)
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const reorderSong = useMutation(api.songs.reorderSong);
 
->>>>>>> Stashed changes
   // Username prompt state
   const [nameInput, setNameInput] = useState("");
 
@@ -152,6 +161,7 @@ export default function RoomPage({ params }: RoomPageProps) {
   const isHost = userId && room && userId === room.hostUserId;
   const currentSong = songs?.find((s) => s._id === room?.currentSongId);
   const advanceSong = useMutation(api.rooms.advanceSong);
+  const togglePause = useMutation(api.rooms.togglePause);
 
   const isAdmin = !!(room && userId && userId === room.hostUserId);
 
@@ -171,7 +181,7 @@ export default function RoomPage({ params }: RoomPageProps) {
     const map = new Map<string, string>();
     songs.forEach((s) => {
       if (s.addedBy !== userId) {
-        map.set(s.addedBy, s.addedByName);
+        map.set(s.addedBy, s.addedByName ?? "Unknown");
       }
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
@@ -572,6 +582,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                 </div>
 
                 {/* Audio-only YouTube player – rendered off-screen but visible to browser */}
+                {/* Only the host gets audio; guests get volume 0 (for progress tracking) */}
                 <div className="fixed -left-[9999px] top-0 opacity-0 pointer-events-none" aria-hidden>
                   <YouTube
                     key={currentSong.providerId}
@@ -591,16 +602,18 @@ export default function RoomPage({ params }: RoomPageProps) {
                     }}
                     onReady={(e: any) => {
                       const p = e.target;
-                      p.setVolume(100);
-                      p.playVideo();
+                      // Only host hears audio
+                      p.setVolume(isHost ? 100 : 0);
+                      // If room is already paused when player loads, pause it
+                      if (room?.isPaused) {
+                        p.pauseVideo();
+                      } else {
+                        p.playVideo();
+                      }
                       setYtPlayer(p);
-                      setIsPlaying(true);
                     }}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
                     onEnd={() => {
                       setYtPlayer(null);
-                      setIsPlaying(false);
                       if (room) {
                         advanceSong({ roomId: room._id });
                       }
@@ -617,27 +630,32 @@ export default function RoomPage({ params }: RoomPageProps) {
                     <button
                       type="button"
                       onClick={() => {
-                        if (!ytPlayer) return;
-                        if (isPlaying) {
-                          ytPlayer.pauseVideo();
-                        } else {
-                          ytPlayer.playVideo();
-                        }
+                        if (!room || !userId) return;
+                        togglePause({ roomId: room._id, userId });
                       }}
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/80 transition-colors"
-                      title={isPlaying ? "Pause" : "Play"}
+                      title={room?.isPaused ? "Play" : "Pause"}
                     >
-                      {isPlaying ? (
+                      {room?.isPaused ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                          <polygon points="6,4 20,12 6,20" />
+                        </svg>
+                      ) : (
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                           <rect x="6" y="4" width="4" height="16" rx="1" />
                           <rect x="14" y="4" width="4" height="16" rx="1" />
                         </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                          <polygon points="6,4 20,12 6,20" />
-                        </svg>
                       )}
                     </button>
+                  )}
+                  {/* Show pause indicator for non-host users */}
+                  {!isHost && room?.isPaused && (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/50">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16" rx="1" />
+                        <rect x="14" y="4" width="4" height="16" rx="1" />
+                      </svg>
+                    </div>
                   )}
                   <div className="flex-1">
                     <NowPlayingProgress player={ytPlayer} />
@@ -694,12 +712,6 @@ export default function RoomPage({ params }: RoomPageProps) {
                   return (
                     <div
                       key={song._id}
-<<<<<<< Updated upstream
-                      className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border px-4 py-3 ${
-                        isCurrent
-                          ? "border-blue-500 bg-blue-500/10 shadow-lg" // highlight style
-                          : "border-white/10 bg-white/5"
-=======
                       draggable={isAdmin}
                       onDragStart={() => { if (isAdmin) setDragIdx(index); }}
                       onDragOver={(e) => { if (isAdmin) { e.preventDefault(); setDragOverIdx(index); } }}
@@ -714,12 +726,13 @@ export default function RoomPage({ params }: RoomPageProps) {
                       }}
                       onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
                       className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 transition-colors ${
-                        dragOverIdx === index
-                          ? "border-primary/50 bg-primary/10"
-                          : "border-white/10 bg-white/5"
+                        isCurrent
+                          ? "border-blue-500 bg-blue-500/10 shadow-lg"
+                          : dragOverIdx === index
+                            ? "border-primary/50 bg-primary/10"
+                            : "border-white/10 bg-white/5"
                       } ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${
                         dragIdx === index ? "opacity-50" : ""
->>>>>>> Stashed changes
                       }`}
                     >
                       {/* Drag handle for host */}
@@ -727,13 +740,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                         <span className="text-muted-foreground select-none text-sm hidden sm:inline" title="Drag to reorder">⠿</span>
                       ) : null}
                       <div className="flex-1 min-w-0">
-<<<<<<< Updated upstream
-                        <p
-                          className={`font-semibold ${isCurrent ? "text-blue-300" : ""}`}
-                        >
-=======
-                        <p className="font-semibold text-sm sm:text-base truncate">
->>>>>>> Stashed changes
+                        <p className={`font-semibold text-sm sm:text-base truncate ${isCurrent ? "text-blue-300" : ""}`}>
                           {index + 1}. {song.title}
                         </p>
                         <div className="text-sm text-muted-foreground">

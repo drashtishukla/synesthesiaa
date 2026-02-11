@@ -161,6 +161,20 @@ export const destroyRoom = mutation({
   },
 });
 
+export const togglePause = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const room = await requireAdmin(ctx, args.roomId, args.userId);
+    await ctx.db.patch(args.roomId, {
+      isPaused: !room.isPaused,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const advanceSong = mutation({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
@@ -203,6 +217,7 @@ export const advanceSong = mutation({
 
     await ctx.db.patch(args.roomId, {
       currentSongId: nextSong ? nextSong._id : undefined,
+      isPaused: false,
     });
   },
 });
