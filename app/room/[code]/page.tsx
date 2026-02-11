@@ -153,6 +153,34 @@ export default function RoomPage({ params }: RoomPageProps) {
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [songs, userId]);
 
+  // ── Presence ──────────────────────────────────────────────────────────
+  const userCount = useQuery(api.presence.list, room ? { roomId: room._id } : "skip");
+  const heartbeat = useMutation(api.presence.heartbeat);
+  const leaveRoom = useMutation(api.presence.leave);
+
+  useEffect(() => {
+    if (!room || !userId) return;
+    
+    // Initial heartbeat
+    heartbeat({ roomId: room._id, userId, userName: userName ?? undefined });
+
+    const interval = setInterval(() => {
+      heartbeat({ roomId: room._id, userId, userName: userName ?? undefined });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [room, userId, userName, heartbeat]);
+
+  const handleLeaveRoom = async () => {
+    if (!room || !userId) return;
+    try {
+      await leaveRoom({ roomId: room._id, userId });
+      router.push("/");
+    } catch (err) {
+      console.error("Failed to leave room", err);
+    }
+  };
+
   // ── Username prompt ───────────────────────────────────────────────────
   if (userId && !userName) {
     return (
@@ -456,6 +484,9 @@ export default function RoomPage({ params }: RoomPageProps) {
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary">
+                  👥 {userCount ?? 1}
+                </Badge>
                 <Badge variant="default">Queue {songs?.length ?? 0}</Badge>
                 <Badge variant="outline">
                   Downvotes {room.settings.allowDownvotes ? "on" : "off"}
@@ -473,6 +504,14 @@ export default function RoomPage({ params }: RoomPageProps) {
                     ★ Host
                   </Badge>
                 ) : null}
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleLeaveRoom}
+                  className="h-6 text-xs"
+                >
+                  Leave
+                </Button>
               </div>
             </div>
           </CardHeader>

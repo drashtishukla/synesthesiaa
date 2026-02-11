@@ -45,4 +45,13 @@ export default defineSchema({
   })
     .index("by_song_user", ["songId", "userId"])
     .index("by_room_user", ["roomId", "userId"]),
+
+  presence: defineTable({
+    userId: v.string(),
+    roomId: v.id("rooms"),
+    updatedAt: v.number(),
+    userName: v.optional(v.string()),
+  })
+    .index("by_room_updated", ["roomId", "updatedAt"])
+    .index("by_user_room", ["userId", "roomId"]),
 });
