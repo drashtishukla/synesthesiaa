@@ -160,110 +160,45 @@ export const destroyRoom = mutation({
   },
 });
 
-// ── Admin-only mutations ────────────────────────────────────────────────
-
-export const updateSettings = mutation({
-  args: {
-    roomId: v.id("rooms"),
-    userId: v.string(),
-    settings: v.object({
-      allowGuestAdd: v.optional(v.boolean()),
-      allowDownvotes: v.optional(v.boolean()),
-      maxQueueLength: v.optional(v.number()),
-      maxSongsPerUser: v.optional(v.number()),
-    }),
-  },
-  handler: async (ctx, args) => {
-    const room = await requireAdmin(ctx, args.roomId, args.userId);
-
-    const merged = { ...room.settings, ...args.settings };
-    await ctx.db.patch(args.roomId, {
-      settings: merged,
-      updatedAt: Date.now(),
-    });
-  },
-});
-
-export const transferHost = mutation({
-  args: {
-    roomId: v.id("rooms"),
-    userId: v.string(),
-    newHostUserId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.roomId, args.userId);
-
-    if (args.userId === args.newHostUserId) {
-      throw new Error("You are already the host.");
-    }
-
-    await ctx.db.patch(args.roomId, {
-      hostUserId: args.newHostUserId,
-      updatedAt: Date.now(),
-    });
-  },
-});
-
-export const destroyRoom = mutation({
-  args: {
-    roomId: v.id("rooms"),
-    userId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.roomId, args.userId);
-
-    // Delete all votes in the room
-    const votes = await ctx.db
-      .query("votes")
-      .withIndex("by_room_user", (q) => q.eq("roomId", args.roomId))
-      .collect();
-    for (const vote of votes) {
-      await ctx.db.delete(vote._id);
-    }
-
-    // Delete all songs in the room
-    const songs = await ctx.db
-      .query("songs")
-      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
-      .collect();
-    for (const song of songs) {
-      await ctx.db.delete(song._id);
-    }
-
-    // Delete the room itself
-    await ctx.db.delete(args.roomId);
-  },
-});
-
-
 export const advanceSong = mutation({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
-    // Get all songs in the queue, sorted
+    const room = await ctx.db.get(args.roomId);
+    if (!room) {
+      throw new Error("Room not found.");
+    }
+
+    // Remove the song that just finished playing
+    if (room.currentSongId) {
+      const finishedSong = await ctx.db.get(room.currentSongId);
+      if (finishedSong) {
+        // Delete votes for the finished song
+        const votes = await ctx.db
+          .query("votes")
+          .withIndex("by_song_user", (q) => q.eq("songId", finishedSong._id))
+          .collect();
+        for (const vote of votes) {
+          await ctx.db.delete(vote._id);
+        }
+        await ctx.db.delete(finishedSong._id);
+      }
+    }
+
+    // Get remaining songs, sorted by score (highest first)
     const songs = await ctx.db
       .query("songs")
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
       .collect();
 
-    songs.sort((a, b) => {
-      if (a.score !== b.score) return b.score - a.score;
-      return a.addedAt - b.addedAt;
-    });
+    // Filter to YouTube songs only (custom songs can't be played)
+    const playable = songs
+      .filter((s) => s.provider === "youtube")
+      .sort((a, b) => {
+        if (a.score !== b.score) return b.score - a.score;
+        return a.lastScoreUpdatedAt - b.lastScoreUpdatedAt;
+      });
 
-    if (songs.length === 0) {
-      await ctx.db.patch(args.roomId, { currentSongId: undefined });
-      return;
-    }
-
-    // Find the current song
-    const room = await ctx.db.get(args.roomId);
-    let nextSong;
-    if (!room?.currentSongId) {
-      nextSong = songs[0];
-    } else {
-      const idx = songs.findIndex((s) => s._id === room.currentSongId);
-      nextSong = songs[idx + 1] || undefined;
-    }
+    const nextSong = playable[0] ?? null;
 
     await ctx.db.patch(args.roomId, {
       currentSongId: nextSong ? nextSong._id : undefined,
