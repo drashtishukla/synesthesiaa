@@ -167,3 +167,58 @@ export const adminSetScore = mutation({
     return args.score;
   },
 });
+
+/** Host-only: reorder a song by setting its score relative to its neighbors. */
+export const reorderSong = mutation({
+  args: {
+    songId: v.id("songs"),
+    userId: v.string(),
+    newIndex: v.number(), // 0-based target position in the sorted queue
+  },
+  handler: async (ctx, args) => {
+    const song = await ctx.db.get(args.songId);
+    if (!song) throw new Error("Song not found.");
+
+    const room = await ctx.db.get(song.roomId);
+    if (!room) throw new Error("Room not found.");
+    if (args.userId !== room.hostUserId) {
+      throw new Error("Only the room host can reorder songs.");
+    }
+
+    // Get current queue in display order
+    const songs = await ctx.db
+      .query("songs")
+      .withIndex("by_room", (q) => q.eq("roomId", song.roomId))
+      .collect();
+    songs.sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score;
+      return a.lastScoreUpdatedAt - b.lastScoreUpdatedAt;
+    });
+
+    const idx = Math.max(0, Math.min(args.newIndex, songs.length - 1));
+
+    // Calculate a score that places the song at the target index
+    let newScore: number;
+    const now = Date.now();
+    if (songs.length <= 1) {
+      newScore = 0;
+    } else if (idx === 0) {
+      newScore = songs[0]._id === args.songId ? songs[0].score : songs[0].score + 1;
+    } else if (idx >= songs.length - 1) {
+      const last = songs[songs.length - 1];
+      newScore = last._id === args.songId ? last.score : last.score - 1;
+    } else {
+      // Place between neighbors
+      const above = songs[idx - 1]._id === args.songId ? songs[idx] : songs[idx - 1];
+      const below = songs[idx + 1]?._id === args.songId ? songs[idx] : songs[idx + 1] ?? songs[idx];
+      newScore = Math.round((above.score + below.score) / 2);
+      // If scores collide, bump above
+      if (newScore === above.score) newScore = above.score;
+    }
+
+    await ctx.db.patch(args.songId, {
+      score: newScore,
+      lastScoreUpdatedAt: now,
+    });
+  },
+});

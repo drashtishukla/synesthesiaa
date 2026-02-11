@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as presence from "../presence.js";
 import type * as reactions from "../reactions.js";
 import type * as rooms from "../rooms.js";
 import type * as songs from "../songs.js";
@@ -20,6 +21,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  presence: typeof presence;
   reactions: typeof reactions;
   rooms: typeof rooms;
   songs: typeof songs;

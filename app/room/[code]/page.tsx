@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useMemo, useState, useEffect } from "react";
+import { type FormEvent, useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery } from "convex/react";
 
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { useUserId, useUserName } from "@/app/lib/useUserId";
 import YouTube from "react-youtube";
 import ReactionOverlay from "@/components/ReactionOverlay";
+import NowPlayingProgress from "@/components/NowPlayingProgress";
+import ShareRoom from "@/components/ShareRoom";
 
 type RoomPageProps = {
   params: { code: string };
@@ -115,6 +117,26 @@ export default function RoomPage({ params }: RoomPageProps) {
   const [transferTarget, setTransferTarget] = useState("");
   const [settingsMaxSongs, setSettingsMaxSongs] = useState<string>("");
 
+<<<<<<< Updated upstream
+=======
+  // YouTube player ref for progress bar & playback control
+  const [ytPlayer, setYtPlayer] = useState<{
+    getCurrentTime: () => number;
+    getDuration: () => number;
+    playVideo: () => void;
+    pauseVideo: () => void;
+    getPlayerState: () => number;
+    setVolume: (v: number) => void;
+    getVolume: () => number;
+  } | null>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+
+  // Drag & drop state for queue reorder (host only)
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const reorderSong = useMutation(api.songs.reorderSong);
+
+>>>>>>> Stashed changes
   // Username prompt state
   const [nameInput, setNameInput] = useState("");
 
@@ -465,14 +487,14 @@ export default function RoomPage({ params }: RoomPageProps) {
   const canAdd = isAdmin || (allowGuestAdd && !atSongLimit);
 
   return (
-    <main className="min-h-screen">
-      <div className="container flex flex-col gap-8 py-12">
+    <main className="min-h-screen pb-6">
+      <div className="container flex flex-col gap-4 sm:gap-6 lg:gap-8 py-6 sm:py-8 lg:py-12 px-3 sm:px-6">
         {/* ── Room header ────────────────────────────────────────────── */}
         <Card>
           <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-3xl sm:text-4xl">
+                <CardTitle className="text-2xl sm:text-3xl lg:text-4xl">
                   {room.name}
                 </CardTitle>
                 <CardDescription className="mt-2">
@@ -481,6 +503,9 @@ export default function RoomPage({ params }: RoomPageProps) {
                     {room.code}
                   </span>
                 </CardDescription>
+                <div className="mt-3">
+                  <ShareRoom roomCode={room.code} />
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary">👥 {userCount ?? 1}</Badge>
@@ -546,24 +571,95 @@ export default function RoomPage({ params }: RoomPageProps) {
                   <ReactionOverlay roomId={room._id} userId={userId} />
                 </div>
 
-                {/* Hidden audio-only YouTube player */}
-                <div className="h-0 w-0 overflow-hidden">
+                {/* Audio-only YouTube player – rendered off-screen but visible to browser */}
+                <div className="fixed -left-[9999px] top-0 opacity-0 pointer-events-none" aria-hidden>
                   <YouTube
+                    key={currentSong.providerId}
                     videoId={currentSong.providerId}
                     opts={{
-                      width: "1",
-                      height: "1",
+                      width: "320",
+                      height: "180",
                       playerVars: {
                         autoplay: 1,
                         rel: 0,
+                        controls: 0,
+                        disablekb: 1,
+                        fs: 0,
+                        modestbranding: 1,
+                        origin: typeof window !== "undefined" ? window.location.origin : "",
                       },
                     }}
+                    onReady={(e: any) => {
+                      const p = e.target;
+                      p.setVolume(100);
+                      p.playVideo();
+                      setYtPlayer(p);
+                      setIsPlaying(true);
+                    }}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
                     onEnd={() => {
+                      setYtPlayer(null);
+                      setIsPlaying(false);
                       if (room) {
                         advanceSong({ roomId: room._id });
                       }
                     }}
+                    onError={(e: any) => {
+                      console.error("YouTube player error:", e.data);
+                    }}
                   />
+                </div>
+
+                {/* Playback controls (host only) + progress bar */}
+                <div className="flex items-center gap-3">
+                  {isHost && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!ytPlayer) return;
+                        if (isPlaying) {
+                          ytPlayer.pauseVideo();
+                        } else {
+                          ytPlayer.playVideo();
+                        }
+                      }}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/80 transition-colors"
+                      title={isPlaying ? "Pause" : "Play"}
+                    >
+                      {isPlaying ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="6" y="4" width="4" height="16" rx="1" />
+                          <rect x="14" y="4" width="4" height="16" rx="1" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                          <polygon points="6,4 20,12 6,20" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                  <div className="flex-1">
+                    <NowPlayingProgress player={ytPlayer} />
+                  </div>
+                  {isHost && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (room) {
+                          setYtPlayer(null);
+                          advanceSong({ roomId: room._id });
+                        }
+                      }}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors"
+                      title="Skip to next"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="4,4 16,12 4,20" />
+                        <rect x="17" y="4" width="3" height="16" rx="1" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -581,9 +677,10 @@ export default function RoomPage({ params }: RoomPageProps) {
               <CardTitle>Queue</CardTitle>
               <CardDescription>
                 Live ordering based on crowd votes.
+                {isAdmin ? " Drag to reorder." : ""}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {!songs || songs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No songs yet. Add the first track.
@@ -597,16 +694,46 @@ export default function RoomPage({ params }: RoomPageProps) {
                   return (
                     <div
                       key={song._id}
+<<<<<<< Updated upstream
                       className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border px-4 py-3 ${
                         isCurrent
                           ? "border-blue-500 bg-blue-500/10 shadow-lg" // highlight style
                           : "border-white/10 bg-white/5"
+=======
+                      draggable={isAdmin}
+                      onDragStart={() => { if (isAdmin) setDragIdx(index); }}
+                      onDragOver={(e) => { if (isAdmin) { e.preventDefault(); setDragOverIdx(index); } }}
+                      onDragLeave={() => setDragOverIdx(null)}
+                      onDrop={async () => {
+                        if (!isAdmin || dragIdx === null || dragIdx === index || !userId) return;
+                        try {
+                          await reorderSong({ songId: songs[dragIdx]._id, userId, newIndex: index });
+                        } catch { /* ignore */ }
+                        setDragIdx(null);
+                        setDragOverIdx(null);
+                      }}
+                      onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+                      className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 transition-colors ${
+                        dragOverIdx === index
+                          ? "border-primary/50 bg-primary/10"
+                          : "border-white/10 bg-white/5"
+                      } ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${
+                        dragIdx === index ? "opacity-50" : ""
+>>>>>>> Stashed changes
                       }`}
                     >
+                      {/* Drag handle for host */}
+                      {isAdmin ? (
+                        <span className="text-muted-foreground select-none text-sm hidden sm:inline" title="Drag to reorder">⠿</span>
+                      ) : null}
                       <div className="flex-1 min-w-0">
+<<<<<<< Updated upstream
                         <p
                           className={`font-semibold ${isCurrent ? "text-blue-300" : ""}`}
                         >
+=======
+                        <p className="font-semibold text-sm sm:text-base truncate">
+>>>>>>> Stashed changes
                           {index + 1}. {song.title}
                         </p>
                         <div className="text-sm text-muted-foreground">
@@ -1008,6 +1135,39 @@ export default function RoomPage({ params }: RoomPageProps) {
           </Card>
         ) : null}
       </div>
+
+      {/* ── Sticky mobile now-playing bar ─────────────────────────── */}
+      {currentSong ? (
+        <div className="fixed bottom-0 inset-x-0 z-50 block lg:hidden border-t border-white/10 bg-card/95 backdrop-blur px-4 py-2.5 safe-bottom">
+          <div className="flex items-center gap-3">
+            <img
+              src={`https://img.youtube.com/vi/${currentSong.providerId}/default.jpg`}
+              alt=""
+              className="h-10 w-10 rounded-lg object-cover"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold truncate">{currentSong.title}</p>
+              {currentSong.artist ? (
+                <p className="text-xs text-muted-foreground truncate">{currentSong.artist}</p>
+              ) : null}
+            </div>
+            {isHost ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs shrink-0"
+                onClick={() => advanceSong({ roomId: room._id })}
+                type="button"
+              >
+                Skip ⏭
+              </Button>
+            ) : null}
+          </div>
+          <div className="mt-1">
+            <NowPlayingProgress player={ytPlayer} />
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
