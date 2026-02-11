@@ -77,7 +77,8 @@ export const listQueue = query({
       if (a.score !== b.score) {
         return b.score - a.score;
       }
-      return a.addedAt - b.addedAt;
+      // Same score: the song that reached this score first comes first
+      return a.lastScoreUpdatedAt - b.lastScoreUpdatedAt;
     });
 
     return songs;

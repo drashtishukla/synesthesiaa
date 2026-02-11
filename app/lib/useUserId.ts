@@ -12,14 +12,14 @@ export function useUserId() {
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const existing = window.localStorage.getItem(STORAGE_KEY);
+    const existing = window.sessionStorage.getItem(STORAGE_KEY);
     if (existing) {
       setUserId(existing);
       return;
     }
 
     const next = generateId();
-    window.localStorage.setItem(STORAGE_KEY, next);
+    window.sessionStorage.setItem(STORAGE_KEY, next);
     setUserId(next);
   }, []);
 

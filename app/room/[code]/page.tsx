@@ -447,7 +447,19 @@ export default function RoomPage({ params }: RoomPageProps) {
                             -1
                           </Button>
                         ) : null}
-                        <Badge variant="outline">{song.score}</Badge>
+                        <Badge
+                          variant="outline"
+                          className={
+                            song.score > 0
+                              ? "border-green-500/40 text-green-400"
+                              : song.score < 0
+                                ? "border-red-500/40 text-red-400"
+                                : ""
+                          }
+                        >
+                          {song.score > 0 ? "+" : ""}
+                          {song.score} vote{song.score === 1 || song.score === -1 ? "" : "s"}
+                        </Badge>
                       </div>
                     </div>
                   );
