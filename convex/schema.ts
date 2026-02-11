@@ -15,6 +15,7 @@ export default defineSchema({
       maxQueueLength: v.number(),
       maxSongsPerUser: v.optional(v.number()),
     }),
+    currentSongId: v.optional(v.id("songs")),
   }).index("by_code", ["code"]),
 
   songs: defineTable({

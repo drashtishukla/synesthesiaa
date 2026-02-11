@@ -47,7 +47,7 @@ export const addSong = mutation({
         q
           .eq("roomId", args.roomId)
           .eq("provider", args.provider)
-          .eq("providerId", args.providerId)
+          .eq("providerId", args.providerId),
       )
       .unique();
 
@@ -55,7 +55,7 @@ export const addSong = mutation({
       return existing._id;
     }
 
-    return ctx.db.insert("songs", {
+    const songId = await ctx.db.insert("songs", {
       roomId: args.roomId,
       provider: args.provider,
       providerId: args.providerId,
@@ -69,6 +69,15 @@ export const addSong = mutation({
       score: 0,
       lastScoreUpdatedAt: now,
     });
+    // If this is the first song in the queue, set it as currentSongId in the room
+    const queue = await ctx.db
+      .query("songs")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    if (queue.length === 1) {
+      await ctx.db.patch(args.roomId, { currentSongId: songId });
+    }
+    return songId;
   },
 });
 
@@ -86,7 +95,8 @@ export const listQueue = query({
       if (a.score !== b.score) {
         return b.score - a.score;
       }
-      return a.addedAt - b.addedAt;
+      // Same score: the song that reached this score first comes first
+      return a.lastScoreUpdatedAt - b.lastScoreUpdatedAt;
     });
 
     return songs;
