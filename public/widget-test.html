@@ -1,74 +1,254 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Synesthesia Widget Test</title>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      body {
-        font-family: system-ui, sans-serif;
-        background: #1a1a2e;
-        color: #e0e0e0;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 24px;
-        padding: 32px;
-      }
-      h1 {
-        font-size: 24px;
-      }
-      p {
-        font-size: 14px;
-        color: #888;
-        max-width: 500px;
-        text-align: center;
-      }
-      code {
-        display: block;
-        margin-top: 16px;
-        background: #0d0d1a;
-        padding: 16px;
-        border-radius: 8px;
-        font-size: 12px;
-        color: #8be9fd;
-        max-width: 560px;
-        width: 100%;
-        overflow-x: auto;
-        white-space: pre;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>🎵 Synesthesia Widget Demo</h1>
-    <p>
-      This page demonstrates embedding the Synesthesia widget on any website.
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Synesthesia Widget — Demo</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 48px 24px;
+    }
+
+    .container { max-width: 860px; margin: 0 auto; }
+
+    h1 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+    h1 span {
+      background: linear-gradient(90deg, #22c55e, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle { color: #888; font-size: 14px; margin-bottom: 40px; }
+
+    .section { margin-bottom: 48px; }
+    .section h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #ccc; }
+    .section p {
+      font-size: 13px; color: #888; margin-bottom: 16px; line-height: 1.6;
+    }
+
+    .card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    pre {
+      background: #0d0d1a;
+      padding: 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #8be9fd;
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.6;
+    }
+
+    .inline-demo {
+      border: 1px dashed rgba(255,255,255,.12);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .event-log {
+      background: #0a0a14;
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #66cc77;
+      height: 140px;
+      overflow-y: auto;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-right: 6px;
+    }
+    .badge-green { background: rgba(34,197,94,.15); color: #22c55e; }
+    .badge-blue  { background: rgba(59,130,246,.15); color: #3b82f6; }
+    .badge-amber { background: rgba(245,158,11,.15); color: #f59e0b; }
+
+    .options-table {
+      width: 100%;
+      font-size: 12px;
+      border-collapse: collapse;
+    }
+    .options-table th {
+      text-align: left;
+      color: #999;
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      font-weight: 500;
+    }
+    .options-table td {
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      color: #ccc;
+    }
+    .options-table td:first-child { color: #8be9fd; font-family: monospace; }
+    .options-table td:nth-child(2) { color: #888; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>&#127925; <span>Synesthesia</span> Widget</h1>
+    <p class="subtitle">
+      Embed a crowd-controlled music queue on any website in under 3 lines of code.
     </p>
 
-    <!-- Widget container -->
-    <div id="synesthesia-widget"></div>
+    <!-- ── Floating mode ────────────────────────────────────────── -->
+    <div class="section">
+      <h2><span class="badge badge-green">Floating</span> Launcher Mode</h2>
+      <p>
+        A draggable bubble appears in the corner of the page.
+        Click it to expand the full music room widget. Drag to reposition.
+        This is the recommended mode for most websites.
+      </p>
+      <div class="card">
+<pre>&lt;script src="https://your-app.com/widget.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  Synesthesia.init({
+    floating: true,
+    width: '400px',
+    height: '650px',
+    // roomCode: 'ABCD',  // optional: auto-join a room
+  });
+&lt;/script&gt;</pre>
+      </div>
+    </div>
 
-    <!-- Embed script -->
-    <script src="http://localhost:3000/widget.js"></script>
-    <script>
-      Synesthesia.init({
-        floating: true,
-        width: "400px",
-        height: "650px",
-      });
-    </script>
+    <!-- ── Inline mode ──────────────────────────────────────────── -->
+    <div class="section">
+      <h2><span class="badge badge-blue">Inline</span> Container Mode</h2>
+      <p>
+        Embed the widget inside a specific element on your page.
+        Great for dedicated music pages, dashboards, or sidebars.
+      </p>
+      <div class="card">
+<pre>&lt;div id="music-widget"&gt;&lt;/div&gt;
+&lt;script src="https://your-app.com/widget.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  Synesthesia.init({
+    container: '#music-widget',
+    width: '100%',
+    height: '600px',
+  });
+&lt;/script&gt;</pre>
+      </div>
+      <div class="inline-demo">
+        <div id="inline-widget"></div>
+      </div>
+    </div>
 
-    <code
-      >&lt;script src="https://your-domain.com/widget.js"&gt;&lt;/script&gt;
-      &lt;script&gt; Synesthesia.init({ floating: true, width: '400px',
-      height: '650px', }); &lt;/script&gt;</code
-    >
-  </body>
+    <!-- ── Configuration options ────────────────────────────────── -->
+    <div class="section">
+      <h2><span class="badge badge-amber">Options</span> Configuration</h2>
+      <div class="card">
+        <table class="options-table">
+          <thead>
+            <tr><th>Option</th><th>Type</th><th>Default</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>floating</td><td>boolean</td><td>false</td><td>Enable floating bubble launcher</td></tr>
+            <tr><td>container</td><td>string</td><td>—</td><td>CSS selector for inline mode</td></tr>
+            <tr><td>roomCode</td><td>string</td><td>null</td><td>Auto-join a room by code</td></tr>
+            <tr><td>width</td><td>string</td><td>'400px'</td><td>Widget width</td></tr>
+            <tr><td>height</td><td>string</td><td>'650px'</td><td>Widget height</td></tr>
+            <tr><td>draggable</td><td>boolean</td><td>true</td><td>Allow dragging the floating bubble</td></tr>
+            <tr><td>position</td><td>object</td><td>{ right: '24px', bottom: '24px' }</td><td>Position of the floating widget</td></tr>
+            <tr><td>baseUrl</td><td>string</td><td>auto</td><td>Override the app origin URL</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Events ───────────────────────────────────────────────── -->
+    <div class="section">
+      <h2>&#128225; Events (postMessage)</h2>
+      <p>
+        The widget sends real-time state updates to the parent page via
+        <code style="background:#1a1a2e;padding:2px 6px;border-radius:4px;color:#8be9fd">postMessage</code>.
+        Listen for events to sync your page UI with the music room.
+      </p>
+      <div class="card">
+<pre>window.addEventListener('message', function (e) {
+  if (e.data &amp;&amp; e.data.type === 'synesthesia:state') {
+    console.log('Room:', e.data.roomCode);
+    console.log('Song:', e.data.currentSong);   // { title, artist }
+    console.log('Queue:', e.data.queueLength);
+    console.log('Admin:', e.data.isAdmin);
+  }
+});</pre>
+      </div>
+      <p style="font-size:11px;color:#666;margin-bottom:8px">&#9660; Live event log (interact with the widget to see events)</p>
+      <div class="event-log" id="event-log">Waiting for widget events&hellip;</div>
+    </div>
+
+    <!-- ── API ──────────────────────────────────────────────────── -->
+    <div class="section">
+      <h2>&#128268; JavaScript API</h2>
+      <p>Control the floating widget programmatically after initialisation.</p>
+      <div class="card">
+<pre>Synesthesia.open()      // expand the widget panel
+Synesthesia.close()     // collapse to the bubble
+Synesthesia.toggle()    // toggle open / close
+Synesthesia.destroy()   // remove the widget from the page</pre>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Widget embed ──────────────────────────────────────────── -->
+  <script src="/widget.js"></script>
+  <script>
+    // Floating mode (bubble in corner)
+    Synesthesia.init({
+      floating: true,
+      width: '400px',
+      height: '650px',
+    });
+
+    // Inline mode (embedded in page)
+    Synesthesia.init({
+      container: '#inline-widget',
+      width: '400px',
+      height: '600px',
+    });
+
+    // Event listener — log postMessage events from the widget
+    var log = document.getElementById('event-log');
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'synesthesia:state') {
+        var song = e.data.currentSong
+          ? e.data.currentSong.title + (e.data.currentSong.artist ? ' — ' + e.data.currentSong.artist : '')
+          : 'none';
+        var msg = new Date().toLocaleTimeString() +
+          '  Room: ' + (e.data.roomCode || '—') +
+          '  Song: ' + song +
+          '  Queue: ' + e.data.queueLength;
+        var line = document.createElement('div');
+        line.textContent = msg;
+        log.appendChild(line);
+        log.scrollTop = log.scrollHeight;
+      }
+    });
+  </script>
+</body>
 </html>
