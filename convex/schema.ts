@@ -52,4 +52,13 @@ export default defineSchema({
     emoji: v.string(),
     createdAt: v.number(),
   }).index("by_room_time", ["roomId", "createdAt"]),
+
+  presence: defineTable({
+    userId: v.string(),
+    roomId: v.id("rooms"),
+    updatedAt: v.number(),
+    userName: v.optional(v.string()),
+  })
+    .index("by_room_updated", ["roomId", "updatedAt"])
+    .index("by_user_room", ["userId", "roomId"]),
 });
