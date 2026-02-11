@@ -13,6 +13,7 @@ export default defineSchema({
       allowGuestAdd: v.boolean(),
       allowDownvotes: v.boolean(),
       maxQueueLength: v.number(),
+      maxSongsPerUser: v.optional(v.number()),
     }),
   }).index("by_code", ["code"]),
 
@@ -25,6 +26,7 @@ export default defineSchema({
     albumArtUrl: v.optional(v.string()),
     durationMs: v.optional(v.number()),
     addedBy: v.string(),
+    addedByName: v.optional(v.string()),
     addedAt: v.number(),
     score: v.number(),
     lastScoreUpdatedAt: v.number(),

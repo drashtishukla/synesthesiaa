@@ -94,3 +94,34 @@ export const castVote = mutation({
     return nextScore;
   },
 });
+
+export const adminAddVotes = mutation({
+  args: {
+    songId: v.id("songs"),
+    userId: v.string(),
+    delta: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const song = await ctx.db.get(args.songId);
+    if (!song) {
+      throw new Error("Song not found.");
+    }
+
+    const room = await ctx.db.get(song.roomId);
+    if (!room) {
+      throw new Error("Room not found.");
+    }
+
+    if (args.userId !== room.hostUserId) {
+      throw new Error("Only the room host can add bulk votes.");
+    }
+
+    const nextScore = song.score + args.delta;
+    await ctx.db.patch(args.songId, {
+      score: nextScore,
+      lastScoreUpdatedAt: Date.now(),
+    });
+
+    return nextScore;
+  },
+});
