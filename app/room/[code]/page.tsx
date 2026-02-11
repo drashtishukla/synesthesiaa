@@ -514,7 +514,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                       },
                     }}
                     onEnd={() => {
-                      if (isHost && room) {
+                      if (room) {
                         advanceSong({ roomId: room._id });
                       }
                     }}
