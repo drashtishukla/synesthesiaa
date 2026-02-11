@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type FormEvent, useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 
@@ -17,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { useUserId } from "@/app/lib/useUserId";
+import { useUserId, useUserName } from "@/app/lib/useUserId";
 import YouTube from "react-youtube";
 
 type RoomPageProps = {
@@ -71,7 +72,9 @@ function extractYouTubeId(input: string) {
 
 export default function RoomPage({ params }: RoomPageProps) {
   const code = params.code.toUpperCase();
+  const router = useRouter();
   const userId = useUserId();
+  const [userName, setUserName] = useUserName();
   const room = useQuery(api.rooms.getRoomByCode, { code });
   const songs = useQuery(
     api.songs.listQueue,
@@ -83,12 +86,15 @@ export default function RoomPage({ params }: RoomPageProps) {
   );
 
   const addSong = useMutation(api.songs.addSong);
+  const removeSong = useMutation(api.songs.removeSong);
+  const adminSetScore = useMutation(api.songs.adminSetScore);
   const castVote = useMutation(api.votes.castVote);
+  const adminAddVotes = useMutation(api.votes.adminAddVotes);
+  const destroyRoom = useMutation(api.rooms.destroyRoom);
+  const updateSettings = useMutation(api.rooms.updateSettings);
+  const transferHost = useMutation(api.rooms.transferHost);
 
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
 
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [youtubeTitle, setYoutubeTitle] = useState("");
@@ -99,6 +105,16 @@ export default function RoomPage({ params }: RoomPageProps) {
   const [searchResults, setSearchResults] = useState<YouTubeResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Admin-specific state
+  const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
+  const [voteInputs, setVoteInputs] = useState<Record<string, string>>({});
+  const [confirmDestroy, setConfirmDestroy] = useState(false);
+  const [transferTarget, setTransferTarget] = useState("");
+  const [settingsMaxSongs, setSettingsMaxSongs] = useState<string>("");
+
+  // Username prompt state
+  const [nameInput, setNameInput] = useState("");
 
   const voteMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -113,42 +129,73 @@ export default function RoomPage({ params }: RoomPageProps) {
   const currentSong = songs?.find((s) => s._id === room?.currentSongId);
   const advanceSong = useMutation(api.rooms.advanceSong);
 
-  const handleAddSong = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!room) {
-      setError("Room not ready yet.");
-      return;
-    }
-    if (!userId) {
-      setError("Generating your user id. Try again in a second.");
-      return;
-    }
+  const isAdmin = !!(room && userId && userId === room.hostUserId);
 
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle) {
-      setError("Song title is required.");
-      return;
-    }
+  // Count how many songs the current user has added
+  const userSongCount = useMemo(() => {
+    if (!songs || !userId) return 0;
+    return songs.filter((s) => s.addedBy === userId).length;
+  }, [songs, userId]);
 
-    setError(null);
-    setIsAdding(true);
-    try {
-      await addSong({
-        roomId: room._id,
-        provider: "custom",
-        providerId: createProviderId(),
-        title: trimmedTitle,
-        artist: artist.trim() || undefined,
-        addedBy: userId,
-      });
-      setTitle("");
-      setArtist("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to add song.");
-    } finally {
-      setIsAdding(false);
-    }
-  };
+  const maxSongsPerUser = room?.settings.maxSongsPerUser ?? 0;
+  const atSongLimit =
+    !isAdmin && maxSongsPerUser > 0 && userSongCount >= maxSongsPerUser;
+
+  // Get unique contributors for transfer host dropdown
+  const contributors = useMemo(() => {
+    if (!songs || !userId) return [];
+    const map = new Map<string, string>();
+    songs.forEach((s) => {
+      if (s.addedBy !== userId) {
+        map.set(s.addedBy, s.addedByName);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [songs, userId]);
+
+  // ── Username prompt ───────────────────────────────────────────────────
+  if (userId && !userName) {
+    return (
+      <main className="min-h-screen">
+        <div className="container flex items-center justify-center py-24">
+          <Card className="w-full max-w-sm">
+            <CardHeader>
+              <CardTitle>What should we call you?</CardTitle>
+              <CardDescription>
+                Enter a display name so others know who added songs.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const name = nameInput.trim();
+                  if (name) setUserName(name);
+                }}
+              >
+                <Input
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  placeholder="Your name"
+                  autoFocus
+                />
+                <Button type="submit" disabled={!nameInput.trim()}>
+                  Continue
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  const displayName = userName ?? "Anonymous";
+
+  // ── Handlers ──────────────────────────────────────────────────────────
+
+
 
   const handleAddYouTube = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -183,6 +230,7 @@ export default function RoomPage({ params }: RoomPageProps) {
         title: name,
         artist: youtubeArtist.trim() || undefined,
         addedBy: userId,
+        addedByName: displayName,
       });
       setYoutubeUrl("");
       setYoutubeTitle("");
@@ -229,7 +277,7 @@ export default function RoomPage({ params }: RoomPageProps) {
       setYoutubeError("Room or user not ready yet.");
       return;
     }
-    if (!allowGuestAdd) {
+    if (!allowGuestAdd && !isAdmin) {
       setYoutubeError("Guests cannot add songs in this room.");
       return;
     }
@@ -244,6 +292,7 @@ export default function RoomPage({ params }: RoomPageProps) {
         artist: track.channel,
         albumArtUrl: track.thumbnailUrl,
         addedBy: userId,
+        addedByName: displayName,
       });
     } catch (err) {
       setYoutubeError(
@@ -269,6 +318,87 @@ export default function RoomPage({ params }: RoomPageProps) {
       setError(err instanceof Error ? err.message : "Unable to cast vote.");
     }
   };
+
+  const handleRemoveSong = async (songId: Id<"songs">) => {
+    if (!userId) return;
+    try {
+      await removeSong({ songId, userId });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to remove song."
+      );
+    }
+  };
+
+  const handleAdminSetScore = async (songId: Id<"songs">) => {
+    if (!userId) return;
+    const val = parseInt(scoreInputs[songId] ?? "", 10);
+    if (isNaN(val)) return;
+    try {
+      await adminSetScore({ songId, userId, score: val });
+      setScoreInputs((prev) => ({ ...prev, [songId]: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to set score.");
+    }
+  };
+
+  const handleAdminAddVotes = async (songId: Id<"songs">) => {
+    if (!userId) return;
+    const val = parseInt(voteInputs[songId] ?? "", 10);
+    if (isNaN(val)) return;
+    try {
+      await adminAddVotes({ songId, userId, delta: val });
+      setVoteInputs((prev) => ({ ...prev, [songId]: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to add votes.");
+    }
+  };
+
+  const handleDestroyRoom = async () => {
+    if (!room || !userId) return;
+    try {
+      await destroyRoom({ roomId: room._id, userId });
+      router.push("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to destroy room.");
+    }
+  };
+
+  const handleTransferHost = async () => {
+    if (!room || !userId || !transferTarget) return;
+    try {
+      await transferHost({
+        roomId: room._id,
+        userId,
+        newHostUserId: transferTarget,
+      });
+      setTransferTarget("");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to transfer host."
+      );
+    }
+  };
+
+  const handleUpdateMaxSongs = async () => {
+    if (!room || !userId) return;
+    const val = parseInt(settingsMaxSongs, 10);
+    if (isNaN(val) || val < 0) return;
+    try {
+      await updateSettings({
+        roomId: room._id,
+        userId,
+        settings: { maxSongsPerUser: val },
+      });
+      setSettingsMaxSongs("");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to update settings."
+      );
+    }
+  };
+
+  // ── Loading / Not found states ────────────────────────────────────────
 
   if (room === undefined) {
     return (
@@ -305,10 +435,12 @@ export default function RoomPage({ params }: RoomPageProps) {
   }
 
   const allowGuestAdd = room.settings.allowGuestAdd;
+  const canAdd = isAdmin || (allowGuestAdd && !atSongLimit);
 
   return (
     <main className="min-h-screen">
       <div className="container flex flex-col gap-8 py-12">
+        {/* ── Room header ────────────────────────────────────────────── */}
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -328,14 +460,25 @@ export default function RoomPage({ params }: RoomPageProps) {
                 <Badge variant="outline">
                   Downvotes {room.settings.allowDownvotes ? "on" : "off"}
                 </Badge>
+                {maxSongsPerUser > 0 ? (
+                  <Badge variant="outline">
+                    Limit {maxSongsPerUser}/user
+                  </Badge>
+                ) : null}
                 {!allowGuestAdd ? (
                   <Badge variant="outline">Guest add off</Badge>
+                ) : null}
+                {isAdmin ? (
+                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">
+                    ★ Host
+                  </Badge>
                 ) : null}
               </div>
             </div>
           </CardHeader>
         </Card>
 
+        {/* ── Playback ───────────────────────────────────────────────── */}
         <Card>
           <CardHeader>
             <CardTitle>Playback</CardTitle>
@@ -386,6 +529,7 @@ export default function RoomPage({ params }: RoomPageProps) {
           </CardContent>
         </Card>
 
+        {/* ── Queue + Add song ───────────────────────────────────────── */}
         <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <Card className="order-last lg:order-first">
             <CardHeader>
@@ -402,12 +546,14 @@ export default function RoomPage({ params }: RoomPageProps) {
               ) : (
                 songs.map((song, index) => {
                   const currentVote = voteMap.get(song._id) ?? 0;
+                  const canRemove =
+                    isAdmin || (userId && song.addedBy === userId);
                   return (
                     <div
                       key={song._id}
                       className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
                     >
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <p className="font-semibold">
                           {index + 1}. {song.title}
                         </p>
@@ -417,10 +563,12 @@ export default function RoomPage({ params }: RoomPageProps) {
                           </p>
                         ) : null}
                         <p className="text-xs text-muted-foreground">
-                          {song.provider === "youtube" ? "YouTube" : "Custom"}
+                          {song.provider === "youtube"
+                            ? "YouTube"
+                            : "Custom"}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button
                           size="sm"
                           variant={currentVote === 1 ? "default" : "outline"}
@@ -439,7 +587,10 @@ export default function RoomPage({ params }: RoomPageProps) {
                               currentVote === -1 ? "secondary" : "outline"
                             }
                             onClick={() =>
-                              handleVote(song._id, currentVote === -1 ? 0 : -1)
+                              handleVote(
+                                song._id,
+                                currentVote === -1 ? 0 : -1
+                              )
                             }
                             disabled={!userId}
                             type="button"
@@ -460,7 +611,66 @@ export default function RoomPage({ params }: RoomPageProps) {
                           {song.score > 0 ? "+" : ""}
                           {song.score} vote{song.score === 1 || song.score === -1 ? "" : "s"}
                         </Badge>
+                        {canRemove ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveSong(song._id)}
+                            type="button"
+                          >
+                            ✕
+                          </Button>
+                        ) : null}
                       </div>
+
+                      {/* Admin inline controls for this song */}
+                      {isAdmin ? (
+                        <div className="flex w-full flex-wrap items-center gap-2 border-t border-white/5 pt-2 mt-1">
+                          <Input
+                            className="w-20 h-8 text-xs"
+                            placeholder="Score"
+                            type="number"
+                            value={scoreInputs[song._id] ?? ""}
+                            onChange={(e) =>
+                              setScoreInputs((prev) => ({
+                                ...prev,
+                                [song._id]: e.target.value,
+                              }))
+                            }
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs"
+                            onClick={() => handleAdminSetScore(song._id)}
+                            type="button"
+                          >
+                            Set
+                          </Button>
+                          <Input
+                            className="w-20 h-8 text-xs"
+                            placeholder="+/- votes"
+                            type="number"
+                            value={voteInputs[song._id] ?? ""}
+                            onChange={(e) =>
+                              setVoteInputs((prev) => ({
+                                ...prev,
+                                [song._id]: e.target.value,
+                              }))
+                            }
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs"
+                            onClick={() => handleAdminAddVotes(song._id)}
+                            type="button"
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })
@@ -468,160 +678,280 @@ export default function RoomPage({ params }: RoomPageProps) {
             </CardContent>
           </Card>
 
-          <Card>
+          <div className="space-y-6">
+            {/* ── Song limit indicator ─────────────────────────────── */}
+            {maxSongsPerUser > 0 && !isAdmin ? (
+              <Card
+                className={
+                  atSongLimit
+                    ? "border-amber-500/40 bg-amber-500/10"
+                    : "border-white/10"
+                }
+              >
+                <CardContent className="py-3 text-sm">
+                  You&apos;ve added{" "}
+                  <span className="font-semibold">
+                    {userSongCount} / {maxSongsPerUser}
+                  </span>{" "}
+                  songs.
+                  {atSongLimit
+                    ? " You've reached the limit."
+                    : ` (${maxSongsPerUser - userSongCount} remaining)`}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {/* ── Add a song card ──────────────────────────────────── */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Add a song</CardTitle>
+                <CardDescription>
+                  Add YouTube links for playback, or a custom track.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <form className="space-y-4" onSubmit={handleSearch}>
+                    <div className="space-y-2">
+                      <Label htmlFor="youtube-search">Search YouTube</Label>
+                      <Input
+                        id="youtube-search"
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Search for a track"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      disabled={isSearching}
+                    >
+                      {isSearching ? "Searching..." : "Search"}
+                    </Button>
+                    {searchError ? (
+                      <p className="text-sm text-destructive-foreground">
+                        {searchError}
+                      </p>
+                    ) : null}
+                    {searchResults.length > 0 ? (
+                      <div className="space-y-3">
+                        {searchResults.map((track) => (
+                          <div
+                            key={track.id}
+                            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
+                          >
+                            <div className="h-10 w-10 overflow-hidden rounded-lg bg-black/30">
+                              {track.thumbnailUrl ? (
+                                <img
+                                  src={track.thumbnailUrl}
+                                  alt={track.title}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : null}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold">
+                                {track.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {track.channel}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddFromSearch(track)}
+                              disabled={!canAdd || !userId}
+                              type="button"
+                            >
+                              {atSongLimit ? "Limit" : "Add"}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </form>
+
+                  <div className="h-px w-full bg-white/5" />
+
+                  <form className="space-y-4" onSubmit={handleAddYouTube}>
+                    <div className="space-y-2">
+                      <Label htmlFor="youtube-url">YouTube URL or ID</Label>
+                      <Input
+                        id="youtube-url"
+                        value={youtubeUrl}
+                        onChange={(event) => setYoutubeUrl(event.target.value)}
+                        placeholder="https://youtu.be/..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="youtube-title">Title</Label>
+                      <Input
+                        id="youtube-title"
+                        value={youtubeTitle}
+                        onChange={(event) =>
+                          setYoutubeTitle(event.target.value)
+                        }
+                        placeholder="Track title"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="youtube-artist">Artist / Channel</Label>
+                      <Input
+                        id="youtube-artist"
+                        value={youtubeArtist}
+                        onChange={(event) =>
+                          setYoutubeArtist(event.target.value)
+                        }
+                        placeholder="Optional"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={isAddingYoutube || !canAdd}
+                      className="w-full"
+                    >
+                      {!canAdd
+                        ? atSongLimit
+                          ? "Song limit reached"
+                          : "Guest add disabled"
+                        : isAddingYoutube
+                          ? "Adding..."
+                          : "Add YouTube track"}
+                    </Button>
+                    {youtubeError ? (
+                      <p className="text-sm text-destructive-foreground">
+                        {youtubeError}
+                      </p>
+                    ) : null}
+                  </form>
+
+
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* ── Admin Panel ────────────────────────────────────────────── */}
+        {isAdmin ? (
+          <Card className="border-amber-500/20 bg-amber-500/5">
             <CardHeader>
-              <CardTitle>Add a song</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <span>★</span> Host Controls
+              </CardTitle>
               <CardDescription>
-                Add YouTube links for playback, or a custom track.
+                Manage room settings, transfer host, or destroy the room.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <form className="space-y-4" onSubmit={handleSearch}>
-                  <div className="space-y-2">
-                    <Label htmlFor="youtube-search">Search YouTube</Label>
+            <CardContent className="space-y-6">
+              {/* Settings */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Room Settings</p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max songs per user</Label>
                     <Input
-                      id="youtube-search"
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="Search for a track"
+                      className="w-24 h-8 text-xs"
+                      type="number"
+                      min={0}
+                      placeholder={String(maxSongsPerUser)}
+                      value={settingsMaxSongs}
+                      onChange={(e) => setSettingsMaxSongs(e.target.value)}
                     />
                   </div>
                   <Button
-                    type="submit"
-                    variant="secondary"
-                    disabled={isSearching}
+                    size="sm"
+                    variant="outline"
+                    onClick={handleUpdateMaxSongs}
+                    type="button"
                   >
-                    {isSearching ? "Searching..." : "Search"}
+                    Update
                   </Button>
-                  {searchError ? (
-                    <p className="text-sm text-destructive-foreground">
-                      {searchError}
-                    </p>
-                  ) : null}
-                  {searchResults.length > 0 ? (
-                    <div className="space-y-3">
-                      {searchResults.map((track) => (
-                        <div
-                          key={track.id}
-                          className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
-                        >
-                          <div className="h-10 w-10 overflow-hidden rounded-lg bg-black/30">
-                            {track.thumbnailUrl ? (
-                              <img
-                                src={track.thumbnailUrl}
-                                alt={track.title}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : null}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold">
-                              {track.title}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {track.channel}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => handleAddFromSearch(track)}
-                            disabled={!allowGuestAdd || !userId}
-                            type="button"
-                          >
-                            Add
-                          </Button>
-                        </div>
-                      ))}
+                </div>
+              </div>
+
+              <div className="h-px w-full bg-white/5" />
+
+              {/* Transfer Host */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Transfer Host</p>
+                {contributors.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No other contributors yet. Others must add a song first.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">New host</Label>
+                      <select
+                        className="h-8 rounded-md border border-white/10 bg-background px-2 text-xs"
+                        value={transferTarget}
+                        onChange={(e) => setTransferTarget(e.target.value)}
+                      >
+                        <option value="">Select a user</option>
+                        {contributors.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.id.slice(0, 8)})
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  ) : null}
-                </form>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleTransferHost}
+                      disabled={!transferTarget}
+                      type="button"
+                    >
+                      Transfer
+                    </Button>
+                  </div>
+                )}
+              </div>
 
-                <div className="h-px w-full bg-white/5" />
+              <div className="h-px w-full bg-white/5" />
 
-                <form className="space-y-4" onSubmit={handleAddYouTube}>
-                  <div className="space-y-2">
-                    <Label htmlFor="youtube-url">YouTube URL or ID</Label>
-                    <Input
-                      id="youtube-url"
-                      value={youtubeUrl}
-                      onChange={(event) => setYoutubeUrl(event.target.value)}
-                      placeholder="https://youtu.be/..."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="youtube-title">Title</Label>
-                    <Input
-                      id="youtube-title"
-                      value={youtubeTitle}
-                      onChange={(event) => setYoutubeTitle(event.target.value)}
-                      placeholder="Track title"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="youtube-artist">Artist / Channel</Label>
-                    <Input
-                      id="youtube-artist"
-                      value={youtubeArtist}
-                      onChange={(event) => setYoutubeArtist(event.target.value)}
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={isAddingYoutube || !allowGuestAdd}
-                    className="w-full"
-                  >
-                    {allowGuestAdd
-                      ? isAddingYoutube
-                        ? "Adding..."
-                        : "Add YouTube track"
-                      : "Guest add disabled"}
-                  </Button>
-                  {youtubeError ? (
-                    <p className="text-sm text-destructive-foreground">
-                      {youtubeError}
+              {/* Destroy Room */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-destructive">
+                  Danger Zone
+                </p>
+                {confirmDestroy ? (
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm">
+                      Are you sure? This deletes everything.
                     </p>
-                  ) : null}
-                </form>
-
-                <div className="h-px w-full bg-white/5" />
-
-                <form className="space-y-4" onSubmit={handleAddSong}>
-                  <div className="space-y-2">
-                    <Label htmlFor="song-title">Custom title</Label>
-                    <Input
-                      id="song-title"
-                      value={title}
-                      onChange={(event) => setTitle(event.target.value)}
-                      placeholder="Song title"
-                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleDestroyRoom}
+                      type="button"
+                    >
+                      Yes, destroy
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmDestroy(false)}
+                      type="button"
+                    >
+                      Cancel
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="song-artist">Custom artist</Label>
-                    <Input
-                      id="song-artist"
-                      value={artist}
-                      onChange={(event) => setArtist(event.target.value)}
-                      placeholder="Optional"
-                    />
-                  </div>
+                ) : (
                   <Button
-                    type="submit"
-                    disabled={isAdding || !allowGuestAdd}
-                    className="w-full"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setConfirmDestroy(true)}
+                    type="button"
                   >
-                    {allowGuestAdd
-                      ? isAdding
-                        ? "Adding..."
-                        : "Add custom track"
-                      : "Guest add disabled"}
+                    Destroy Room
                   </Button>
-                </form>
+                )}
               </div>
             </CardContent>
           </Card>
-        </section>
+        ) : null}
 
         {error ? (
           <Card className="border-destructive/40 bg-destructive/10">

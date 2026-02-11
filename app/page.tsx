@@ -24,6 +24,7 @@ export default function Home() {
   const createRoom = useMutation(api.rooms.createRoom);
 
   const [roomName, setRoomName] = useState("");
+  const [maxSongsPerUser, setMaxSongsPerUser] = useState(5);
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -38,7 +39,7 @@ export default function Home() {
     setIsCreating(true);
     try {
       const name = roomName.trim() || "Untitled Room";
-      const result = await createRoom({ name, hostUserId: userId });
+      const result = await createRoom({ name, hostUserId: userId, maxSongsPerUser });
       router.push(`/room/${result.code}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create room.");
@@ -136,6 +137,18 @@ export default function Home() {
                     value={roomName}
                     onChange={(event) => setRoomName(event.target.value)}
                     placeholder="House Party, Cafe, Campus Fest"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max-songs">Songs per user (0 = unlimited)</Label>
+                  <Input
+                    id="max-songs"
+                    type="number"
+                    min={0}
+                    value={maxSongsPerUser}
+                    onChange={(event) =>
+                      setMaxSongsPerUser(Number(event.target.value))
+                    }
                   />
                 </div>
                 <Button type="submit" disabled={isCreating}>
