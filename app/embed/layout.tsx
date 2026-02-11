@@ -11,7 +11,7 @@ export default function EmbedLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen overflow-auto" style={{ background: "#111", color: "#ccc" }}>
+    <div className="min-h-screen overflow-auto bg-background text-foreground">
       {children}
     </div>
   );

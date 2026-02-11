@@ -1,13 +1,20 @@
 "use client";
 
-import { type FormEvent, useMemo, useState, useEffect } from "react";
+import {
+  Suspense,
+  type FormEvent,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useUserId, useUserName } from "@/app/lib/useUserId";
 import YouTube from "react-youtube";
-import ReactionOverlay from "@/components/ReactionOverlay";
-import "./retro.css";
 
 /* ─── helpers ──────────────────────────────────────────────────────────── */
 
@@ -40,17 +47,63 @@ function extractYouTubeId(input: string) {
   return null;
 }
 
+/* ─── shared UI primitives ─────────────────────────────────────────────── */
+
+function WInput({
+  className = "",
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      className={
+        "h-9 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-foreground " +
+        "placeholder:text-muted-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25 " +
+        "transition-colors " +
+        className
+      }
+      {...props}
+    />
+  );
+}
+
+function WBtn({
+  variant = "default",
+  className = "",
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "default" | "primary" | "danger" | "ghost";
+}) {
+  const base =
+    "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium transition-colors " +
+    "disabled:opacity-40 disabled:pointer-events-none ";
+  const variants: Record<string, string> = {
+    default:
+      "border border-white/10 bg-white/5 text-foreground hover:bg-white/10",
+    primary: "bg-primary text-primary-foreground hover:bg-primary/80",
+    danger:
+      "bg-destructive/10 text-red-400 border border-red-500/20 hover:bg-destructive/20",
+    ghost: "text-muted-foreground hover:text-foreground hover:bg-white/5",
+  };
+  return (
+    <button className={base + variants[variant] + " " + className} {...props}>
+      {children}
+    </button>
+  );
+}
+
 type WidgetView = "lobby" | "room";
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-export default function EmbedPage() {
+function EmbedPageInner() {
   const userId = useUserId();
   const [userName, setUserName] = useUserName();
+  const searchParams = useSearchParams();
+  const paramRoom = searchParams.get("room");
 
-  // Navigation state (no router — single-page widget)
-  const [view, setView] = useState<WidgetView>("lobby");
-  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [view, setView] = useState<WidgetView>(paramRoom ? "room" : "lobby");
+  const [roomCode, setRoomCode] = useState<string | null>(paramRoom);
 
   if (userId && !userName) {
     return <UsernamePrompt onSubmit={setUserName} />;
@@ -81,43 +134,58 @@ export default function EmbedPage() {
   );
 }
 
+export default function EmbedPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center p-12">
+          <p className="text-sm text-muted-foreground animate-pulse">
+            Loading…
+          </p>
+        </div>
+      }
+    >
+      <EmbedPageInner />
+    </Suspense>
+  );
+}
+
 /* ─── Username Prompt ──────────────────────────────────────────────────── */
 
 function UsernamePrompt({ onSubmit }: { onSubmit: (name: string) => void }) {
   const [input, setInput] = useState("");
   return (
-    <div className="retro-player flex items-center justify-center p-6 min-h-[300px]">
-      <div className="w-full max-w-xs space-y-4">
+    <div className="flex items-center justify-center p-6 min-h-[320px]">
+      <div className="w-full max-w-xs space-y-5">
         <div className="text-center space-y-1">
-          <span className="retro-brand">synesthesia</span>
+          <h2 className="text-lg font-semibold">What should we call you?</h2>
+          <p className="text-xs text-muted-foreground">
+            So others know who added songs
+          </p>
         </div>
-        <div className="retro-lcd px-4 py-4 space-y-3">
-          <p className="retro-lcd-text text-sm text-center">ENTER YOUR NAME</p>
-          <p className="retro-lcd-dim text-[10px] text-center">So others know who added songs</p>
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const name = input.trim();
-              if (name) onSubmit(name);
-            }}
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const name = input.trim();
+            if (name) onSubmit(name);
+          }}
+        >
+          <WInput
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Your name"
+            autoFocus
+          />
+          <WBtn
+            type="submit"
+            variant="primary"
+            disabled={!input.trim()}
+            className="w-full h-9"
           >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="YOUR NAME"
-              className="retro-input w-full h-8 text-sm"
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              className="retro-btn retro-btn-primary w-full py-2 text-[10px]"
-            >
-              CONTINUE ▶
-            </button>
-          </form>
-        </div>
+            Continue
+          </WBtn>
+        </form>
       </div>
     </div>
   );
@@ -142,14 +210,18 @@ function EmbedLobby({
   const handleCreate = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!userId) {
-      setError("Generating user id. Try again.");
+      setError("Generating user id — try again.");
       return;
     }
     setError(null);
     setIsCreating(true);
     try {
       const name = roomName.trim() || "Untitled Room";
-      const result = await createRoom({ name, hostUserId: userId, maxSongsPerUser });
+      const result = await createRoom({
+        name,
+        hostUserId: userId,
+        maxSongsPerUser,
+      });
       onJoin(result.code);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create room.");
@@ -169,94 +241,69 @@ function EmbedLobby({
   };
 
   return (
-    <div className="retro-player flex flex-col gap-3 p-4">
-      {/* Brand */}
-      <div className="text-center space-y-2 py-2">
-        <div className="flex items-center justify-center gap-2">
-          <div className="retro-led retro-led-green" />
-          <span className="retro-amber-text text-lg"
-                style={{ fontFamily: "var(--retro-font)", letterSpacing: "2px" }}>
-            SYNESTHESIA
-          </span>
-          <div className="retro-led retro-led-green" />
-        </div>
-        <p className="retro-lcd-dim text-[10px]">CROWD-CONTROLLED MUSIC QUEUE</p>
+    <div className="flex flex-col gap-4 p-4">
+      {/* Header */}
+      <div className="text-center space-y-1 py-3">
+        <h1 className="text-xl font-semibold text-glow">synesthesia</h1>
+        <p className="text-[11px] text-muted-foreground">
+          Crowd-controlled music queue
+        </p>
       </div>
 
-      {/* Create */}
-      <div className="retro-lcd px-3 py-3 space-y-2">
-        <div className="flex items-center gap-1.5">
-          <div className="retro-led retro-led-amber" />
-          <span className="retro-amber-text text-[10px]">NEW ROOM</span>
-        </div>
-        <form className="space-y-2" onSubmit={handleCreate}>
-          <input
+      {/* Create room */}
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+        <h3 className="text-sm font-semibold">Start a room</h3>
+        <form className="space-y-2.5" onSubmit={handleCreate}>
+          <WInput
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
-            placeholder="ROOM NAME"
-            className="retro-input w-full h-7 text-[12px]"
+            placeholder="Room name"
           />
           <div className="flex items-center gap-2">
-            <span className="retro-lcd-dim text-[9px] whitespace-nowrap">SONGS/USER</span>
-            <input
+            <label className="text-[11px] text-muted-foreground whitespace-nowrap">
+              Songs / user
+            </label>
+            <WInput
               type="number"
               min={0}
               value={maxSongsPerUser}
               onChange={(e) => setMaxSongsPerUser(Number(e.target.value))}
-              className="retro-input h-6 text-[12px] w-14"
+              className="!w-16"
             />
-            <button
+            <WBtn
               type="submit"
+              variant="primary"
               disabled={isCreating}
-              className="retro-btn retro-btn-primary ml-auto px-3 py-1 text-[9px]"
+              className="ml-auto"
             >
-              {isCreating ? "..." : "CREATE ▶"}
-            </button>
+              {isCreating ? "Creating…" : "Create"}
+            </WBtn>
           </div>
         </form>
       </div>
 
-      <div className="retro-groove" />
-
-      {/* Join */}
-      <div className="retro-lcd px-3 py-3 space-y-2">
-        <div className="flex items-center gap-1.5">
-          <div className="retro-led retro-led-green" />
-          <span className="retro-lcd-text text-[10px]">JOIN ROOM</span>
-        </div>
-        <form className="flex items-center gap-2" onSubmit={handleJoin}>
-          <input
+      {/* Join room */}
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+        <h3 className="text-sm font-semibold">Join a room</h3>
+        <form className="flex gap-2" onSubmit={handleJoin}>
+          <WInput
             value={joinCode}
             onChange={(e) => setJoinCode(e.target.value)}
-            placeholder="ROOM CODE"
-            className="retro-input flex-1 h-7 text-[12px] uppercase"
+            placeholder="Room code"
+            className="uppercase"
           />
-          <button
-            type="submit"
-            className="retro-btn px-3 py-1 text-[9px]"
-          >
-            JOIN ▶
-          </button>
+          <WBtn type="submit" className="shrink-0">
+            Join
+          </WBtn>
         </form>
       </div>
 
-      {error && (
-        <div className="flex items-center gap-1.5 px-1">
-          <div className="retro-led retro-led-red" />
-          <p className="text-[10px] text-[#cc6666]" style={{ fontFamily: "var(--retro-font)" }}>
-            {error}
-          </p>
-        </div>
-      )}
-
-      <div className="flex items-center justify-center">
-        <span className="retro-brand">powered by synesthesia</span>
-      </div>
+      {error && <p className="text-xs text-red-400 px-1">{error}</p>}
     </div>
   );
 }
 
-/* ─── Room (compact) ───────────────────────────────────────────────────── */
+/* ─── Room ─────────────────────────────────────────────────────────────── */
 
 function EmbedRoom({
   code,
@@ -269,7 +316,9 @@ function EmbedRoom({
   userName: string;
   onLeave: () => void;
 }) {
-  const room = useQuery(api.rooms.getRoomByCode, { code: code.toUpperCase() });
+  const room = useQuery(api.rooms.getRoomByCode, {
+    code: code.toUpperCase(),
+  });
   const songs = useQuery(
     api.songs.listQueue,
     room ? { roomId: room._id } : "skip",
@@ -286,24 +335,25 @@ function EmbedRoom({
   const destroyRoom = useMutation(api.rooms.destroyRoom);
   const updateSettings = useMutation(api.rooms.updateSettings);
   const transferHost = useMutation(api.rooms.transferHost);
-  const adminSetScore = useMutation(api.songs.adminSetScore);
-  const adminAddVotes = useMutation(api.votes.adminAddVotes);
 
   // Presence
-  const userCount = useQuery(api.presence.list, room ? { roomId: room._id } : "skip");
+  const userCount = useQuery(
+    api.presence.list,
+    room ? { roomId: room._id } : "skip",
+  );
   const heartbeatMut = useMutation(api.presence.heartbeat);
   const leaveRoomMut = useMutation(api.presence.leave);
 
   useEffect(() => {
     if (!room || !userId) return;
-    heartbeatMut({ roomId: room._id, userId, userName: userName });
+    heartbeatMut({ roomId: room._id, userId, userName });
     const interval = setInterval(() => {
-      heartbeatMut({ roomId: room._id, userId, userName: userName });
+      heartbeatMut({ roomId: room._id, userId, userName });
     }, 5000);
     return () => clearInterval(interval);
   }, [room, userId, userName, heartbeatMut]);
 
-  // State
+  // Local state
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<YouTubeResult[]>([]);
@@ -314,12 +364,45 @@ function EmbedRoom({
   const [youtubeArtist, setYoutubeArtist] = useState("");
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
   const [isAddingYoutube, setIsAddingYoutube] = useState(false);
-  const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
-  const [voteInputs, setVoteInputs] = useState<Record<string, string>>({});
   const [confirmDestroy, setConfirmDestroy] = useState(false);
   const [transferTarget, setTransferTarget] = useState("");
-  const [settingsMaxSongs, setSettingsMaxSongs] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"queue" | "add" | "admin">("queue");
+  const [settingsMaxSongs, setSettingsMaxSongs] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<"queue" | "add" | "admin">(
+    "queue",
+  );
+
+  // YouTube player & progress
+  const ytPlayerRef = useRef<any>(null);
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+
+  useEffect(() => {
+    let raf: number;
+    const tick = () => {
+      const p = ytPlayerRef.current;
+      if (p) {
+        try {
+          const cur = p.getCurrentTime?.() ?? 0;
+          const dur = p.getDuration?.() ?? 0;
+          setCurrentTime(cur);
+          setDuration(dur);
+          setProgress(dur > 0 ? cur / dur : 0);
+        } catch {}
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const fmtTime = useCallback((s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  }, []);
 
   const voteMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -330,13 +413,43 @@ function EmbedRoom({
   const isAdmin = !!(room && userId && userId === room.hostUserId);
   const currentSong = songs?.find((s) => s._id === room?.currentSongId);
 
+  useEffect(() => {
+    if (!currentSong) {
+      ytPlayerRef.current = null;
+      setProgress(0);
+      setCurrentTime(0);
+      setDuration(0);
+    }
+  }, [currentSong]);
+
+  // Notify parent window via postMessage
+  useEffect(() => {
+    if (typeof window === "undefined" || window === window.parent) return;
+    try {
+      window.parent.postMessage(
+        {
+          type: "synesthesia:state",
+          roomCode: code,
+          roomName: room?.name ?? null,
+          currentSong: currentSong
+            ? { title: currentSong.title, artist: currentSong.artist ?? null }
+            : null,
+          queueLength: songs?.length ?? 0,
+          isAdmin,
+        },
+        "*",
+      );
+    } catch {}
+  }, [code, room?.name, currentSong, songs?.length, isAdmin]);
+
   const userSongCount = useMemo(() => {
     if (!songs || !userId) return 0;
     return songs.filter((s) => s.addedBy === userId).length;
   }, [songs, userId]);
 
   const maxSongsPerUser = room?.settings.maxSongsPerUser ?? 0;
-  const atSongLimit = !isAdmin && maxSongsPerUser > 0 && userSongCount >= maxSongsPerUser;
+  const atSongLimit =
+    !isAdmin && maxSongsPerUser > 0 && userSongCount >= maxSongsPerUser;
   const allowGuestAdd = room?.settings.allowGuestAdd ?? true;
   const canAdd = isAdmin || (allowGuestAdd && !atSongLimit);
 
@@ -344,12 +457,20 @@ function EmbedRoom({
     if (!songs || !userId) return [];
     const map = new Map<string, string>();
     songs.forEach((s) => {
-      if (s.addedBy !== userId) map.set(s.addedBy, s.addedByName ?? "Anonymous");
+      if (s.addedBy !== userId)
+        map.set(s.addedBy, s.addedByName ?? "Anonymous");
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [songs, userId]);
 
   /* ── Handlers ───────────────────────────────────────── */
+
+  const handleCopyCode = () => {
+    if (!room) return;
+    navigator.clipboard.writeText(room.code).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   const handleSearch = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -358,7 +479,9 @@ function EmbedRoom({
     setSearchError(null);
     setIsSearching(true);
     try {
-      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(q)}`);
+      const res = await fetch(
+        `/api/youtube/search?q=${encodeURIComponent(q)}`,
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Search failed.");
       setSearchResults(data.results ?? []);
@@ -391,9 +514,15 @@ function EmbedRoom({
     e.preventDefault();
     if (!room || !userId) return;
     const id = extractYouTubeId(youtubeUrl);
-    if (!id) { setYoutubeError("Invalid YouTube URL."); return; }
+    if (!id) {
+      setYoutubeError("Invalid YouTube URL.");
+      return;
+    }
     const name = youtubeTitle.trim();
-    if (!name) { setYoutubeError("Add a title."); return; }
+    if (!name) {
+      setYoutubeError("Add a title.");
+      return;
+    }
     setYoutubeError(null);
     setIsAddingYoutube(true);
     try {
@@ -442,30 +571,6 @@ function EmbedRoom({
     onLeave();
   };
 
-  const handleAdminSetScore = async (songId: Id<"songs">) => {
-    if (!userId) return;
-    const val = parseInt(scoreInputs[songId] ?? "", 10);
-    if (isNaN(val)) return;
-    try {
-      await adminSetScore({ songId, userId, score: val });
-      setScoreInputs((p) => ({ ...p, [songId]: "" }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed.");
-    }
-  };
-
-  const handleAdminAddVotes = async (songId: Id<"songs">) => {
-    if (!userId) return;
-    const val = parseInt(voteInputs[songId] ?? "", 10);
-    if (isNaN(val)) return;
-    try {
-      await adminAddVotes({ songId, userId, delta: val });
-      setVoteInputs((p) => ({ ...p, [songId]: "" }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed.");
-    }
-  };
-
   const handleDestroyRoom = async () => {
     if (!room || !userId) return;
     try {
@@ -479,7 +584,11 @@ function EmbedRoom({
   const handleTransferHost = async () => {
     if (!room || !userId || !transferTarget) return;
     try {
-      await transferHost({ roomId: room._id, userId, newHostUserId: transferTarget });
+      await transferHost({
+        roomId: room._id,
+        userId,
+        newHostUserId: transferTarget,
+      });
       setTransferTarget("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed.");
@@ -491,7 +600,11 @@ function EmbedRoom({
     const val = parseInt(settingsMaxSongs, 10);
     if (isNaN(val) || val < 0) return;
     try {
-      await updateSettings({ roomId: room._id, userId, settings: { maxSongsPerUser: val } });
+      await updateSettings({
+        roomId: room._id,
+        userId,
+        settings: { maxSongsPerUser: val },
+      });
       setSettingsMaxSongs("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed.");
@@ -502,20 +615,19 @@ function EmbedRoom({
 
   if (room === undefined) {
     return (
-      <div className="retro-player flex items-center justify-center p-8">
-        <span className="retro-lcd-dim text-sm">LOADING...</span>
+      <div className="flex items-center justify-center p-12">
+        <p className="text-sm text-muted-foreground animate-pulse">
+          Loading…
+        </p>
       </div>
     );
   }
 
   if (room === null) {
     return (
-      <div className="retro-player flex flex-col items-center justify-center gap-3 p-8">
-        <div className="retro-led retro-led-red" />
-        <span className="retro-amber-text text-sm">ROOM NOT FOUND</span>
-        <button className="retro-btn px-3 py-1 text-[9px]" onClick={onLeave}>
-          ◀ BACK
-        </button>
+      <div className="flex flex-col items-center justify-center gap-3 p-12">
+        <p className="text-sm font-medium text-red-400">Room not found</p>
+        <WBtn onClick={onLeave}>Back</WBtn>
       </div>
     );
   }
@@ -523,82 +635,130 @@ function EmbedRoom({
   /* ── Render ─────────────────────────────────────────── */
 
   return (
-    <div className="retro-player flex flex-col h-full max-h-[650px] p-3 gap-2.5">
-
-      {/* ── Top bezel: brand + room info ────────────────── */}
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <span className="retro-brand">synesthesia</span>
-          <div className={`retro-led ${currentSong ? "retro-led-green" : "retro-led-off"}`} />
+    <div className="flex flex-col h-full max-h-[650px] p-3 gap-3">
+      {/* ── Header ─────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold truncate">{room.name}</h2>
+          <div className="flex items-center gap-2 mt-0.5">
+            <button
+              onClick={handleCopyCode}
+              className="inline-flex items-center gap-1 rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/15 transition-colors"
+              title="Copy room code"
+            >
+              {room.code}
+              <span className="text-[10px]">{copied ? "✓" : "⎘"}</span>
+            </button>
+            <span className="text-[11px] text-muted-foreground">
+              👥 {userCount ?? 1}
+            </span>
+            {isAdmin && (
+              <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                Host
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="retro-lcd-dim text-[11px]">👥 {userCount ?? 1}</span>
-          {isAdmin && <div className="retro-led retro-led-amber" title="Host" />}
-          <button
-            onClick={handleLeaveRoom}
-            className="retro-btn retro-btn-danger px-2 py-0.5 text-[8px]"
-          >
-            EJECT
-          </button>
-        </div>
+        <WBtn
+          variant="danger"
+          onClick={handleLeaveRoom}
+          className="shrink-0 text-[10px]"
+        >
+          Leave
+        </WBtn>
       </div>
 
-      {/* ── LCD Screen ──────────────────────────────────── */}
-      <div className="retro-lcd px-3 py-2.5 flex flex-col gap-1.5 relative z-0">
+      {/* ── Now Playing ────────────────────────────────── */}
+      <div className="relative rounded-xl border border-white/10 bg-white/5 overflow-hidden">
         {currentSong ? (
           <>
-            {/* Room name + code */}
-            <div className="flex justify-between items-center">
-              <span className="retro-lcd-dim text-[10px]">{room.name}</span>
-              <span className="retro-lcd-dim text-[10px]">{room.code}</span>
-            </div>
-
-            {/* Marquee title */}
-            <div className="retro-marquee text-lg leading-tight relative z-10">
-              <span className="retro-marquee-scroll">
-                {currentSong.title}
-                {currentSong.artist ? ` — ${currentSong.artist}` : ""}
-                {"    ♫    "}
-              </span>
-            </div>
-
-            {/* Info row */}
-            <div className="flex justify-between items-center relative z-10">
-              <span className="retro-lcd-dim text-[10px]">
-                {currentSong.addedByName ? `by ${currentSong.addedByName}` : ""}
-              </span>
-              <div className="flex items-center gap-2">
-                {/* Equalizer bars */}
-                <div className="retro-eq">
-                  <div className="retro-eq-bar" />
-                  <div className="retro-eq-bar" />
-                  <div className="retro-eq-bar" />
-                  <div className="retro-eq-bar" />
-                  <div className="retro-eq-bar" />
-                </div>
-                <span className="retro-amber-text text-[10px]">PLAYING</span>
+            <div className="relative">
+              <img
+                src={`https://img.youtube.com/vi/${currentSong.providerId}/mqdefault.jpg`}
+                alt=""
+                className="w-full aspect-video object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+              <div className="absolute bottom-0 inset-x-0 p-3">
+                <p className="text-sm font-semibold text-white truncate">
+                  {currentSong.title}
+                </p>
+                <p className="text-[11px] text-white/60 truncate">
+                  {currentSong.artist}
+                  {currentSong.addedByName &&
+                    ` · ${currentSong.addedByName}`}
+                </p>
               </div>
             </div>
 
-            {/* Fake progress */}
-            <div className="retro-progress-track mt-0.5 relative z-10">
-              <div className="retro-progress-fill" style={{ width: "35%" }} />
+            {/* Progress */}
+            <div className="px-3 pb-2 pt-1.5 space-y-1">
+              <div
+                className="relative h-1.5 w-full rounded-full bg-white/10 overflow-hidden cursor-pointer group"
+                onClick={(e) => {
+                  const p = ytPlayerRef.current;
+                  if (!p || duration <= 0) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                  p.seekTo(ratio * duration, true);
+                }}
+              >
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-primary transition-[width] duration-200 group-hover:bg-primary/90"
+                  style={{
+                    width: `${(progress * 100).toFixed(1)}%`,
+                  }}
+                />
+              </div>
+              {duration > 0 && (
+                <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
+                  <span>{fmtTime(currentTime)}</span>
+                  <span>{fmtTime(duration)}</span>
+                </div>
+              )}
             </div>
 
-            {/* Reactions */}
-            <div className="absolute inset-0 z-20 pointer-events-auto">
-              <ReactionOverlay roomId={room._id} userId={userId} />
-            </div>
+            {/* Transport (admin only) */}
+            {isAdmin && (
+              <div className="flex items-center justify-center gap-2 pb-2.5">
+                <button
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/80 transition-colors"
+                  title={isPlaying ? "Pause" : "Play"}
+                  onClick={() => {
+                    const p = ytPlayerRef.current;
+                    if (!p) return;
+                    if (isPlaying) {
+                      p.pauseVideo();
+                      setIsPlaying(false);
+                    } else {
+                      p.playVideo();
+                      setIsPlaying(true);
+                    }
+                  }}
+                >
+                  {isPlaying ? "⏸" : "▶"}
+                </button>
+                <button
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-white/70 hover:bg-white/20 transition-colors text-xs"
+                  title="Skip"
+                  onClick={() => advanceSong({ roomId: room._id })}
+                >
+                  ⏭
+                </button>
+              </div>
+            )}
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center py-4 gap-1">
-            <span className="retro-lcd-dim text-sm">NO DISC</span>
-            <span className="retro-lcd-dim text-[10px]">Insert track below</span>
+          <div className="flex flex-col items-center justify-center py-8 gap-1">
+            <p className="text-sm text-muted-foreground">No song playing</p>
+            <p className="text-[11px] text-muted-foreground/60">
+              Add a track to get started
+            </p>
           </div>
         )}
       </div>
 
-      {/* Hidden audio-only player */}
+      {/* Hidden YouTube player */}
       {currentSong && (
         <div className="h-0 w-0 overflow-hidden">
           <YouTube
@@ -608,6 +768,14 @@ function EmbedRoom({
               height: "1",
               playerVars: { autoplay: 1, rel: 0 },
             }}
+            onReady={(e: any) => {
+              ytPlayerRef.current = e.target;
+            }}
+            onStateChange={(e: any) => {
+              // 1 = playing, 2 = paused
+              if (e.data === 1) setIsPlaying(true);
+              else if (e.data === 2) setIsPlaying(false);
+            }}
             onEnd={() => {
               if (room) advanceSong({ roomId: room._id });
             }}
@@ -615,42 +783,22 @@ function EmbedRoom({
         </div>
       )}
 
-      {/* ── Transport controls ─────────────────────────── */}
-      {isAdmin && currentSong && (
-        <div className="flex items-center justify-center gap-1.5">
-          <button
-            className="retro-transport-btn"
-            title="Previous"
-            onClick={() => {}}
-          >
-            ⏮
-          </button>
-          <button
-            className="retro-transport-btn active"
-            title="Playing"
-          >
-            ▶
-          </button>
-          <button
-            className="retro-transport-btn"
-            title="Skip"
-            onClick={() => { if (room) advanceSong({ roomId: room._id }); }}
-          >
-            ⏭
-          </button>
-        </div>
-      )}
-
-      {/* ── Tab selector ───────────────────────────────── */}
-      <div className="flex gap-px">
-        {(["queue", "add", ...(isAdmin ? ["admin"] : [])] as const).map((tab) => (
+      {/* ── Tabs ───────────────────────────────────────── */}
+      <div className="flex gap-1 border-b border-white/10">
+        {(
+          ["queue", "add", ...(isAdmin ? ["admin"] : [])] as const
+        ).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as typeof activeTab)}
-            className={`retro-tab flex-1 ${activeTab === tab ? "active" : ""}`}
+            className={`flex-1 py-1.5 text-[11px] font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === tab
+                ? "text-primary border-primary"
+                : "text-muted-foreground border-transparent hover:text-foreground"
+            }`}
           >
             {tab === "queue"
-              ? `Queue · ${songs?.length ?? 0}`
+              ? `Queue (${songs?.length ?? 0})`
               : tab === "add"
                 ? "Add"
                 : "Host"}
@@ -658,80 +806,99 @@ function EmbedRoom({
         ))}
       </div>
 
-      {/* ── Tab content panel ──────────────────────────── */}
-      <div className="flex-1 min-h-0 bg-[#252525] border border-[#3a3a3a] rounded-b-md overflow-hidden">
-
-        {/* ── Queue ─────────────────────────────────────── */}
+      {/* ── Tab content ────────────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {/* Queue */}
         {activeTab === "queue" && (
-          <div className="retro-scroll overflow-y-auto max-h-[260px]">
+          <div className="overflow-y-auto max-h-[280px] space-y-1 pr-1">
             {!songs || songs.length === 0 ? (
-              <div className="flex items-center justify-center py-8">
-                <span className="retro-lcd-dim text-xs">Empty queue</span>
-              </div>
+              <p className="text-xs text-muted-foreground text-center py-6">
+                Queue is empty
+              </p>
             ) : (
               songs.map((song, index) => {
                 const currentVote = voteMap.get(song._id) ?? 0;
-                const canRemove = isAdmin || (userId && song.addedBy === userId);
+                const canRemove =
+                  isAdmin || (userId && song.addedBy === userId);
                 const isCurrent = song._id === room.currentSongId;
                 return (
                   <div
                     key={song._id}
-                    className={`retro-track flex items-center gap-2 ${isCurrent ? "!bg-[rgba(51,255,102,0.06)]" : ""}`}
+                    className={`flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors ${
+                      isCurrent
+                        ? "bg-primary/10 border border-primary/20"
+                        : "hover:bg-white/5"
+                    }`}
                   >
-                    {/* Track number */}
-                    <span className={`retro-lcd-dim text-[11px] w-5 text-right shrink-0 ${isCurrent ? "!text-[#33ff66]" : ""}`}>
-                      {String(index + 1).padStart(2, "0")}
+                    <span
+                      className={`text-[11px] w-5 text-right shrink-0 tabular-nums ${
+                        isCurrent
+                          ? "text-primary font-semibold"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {index + 1}
                     </span>
-
-                    {/* Track info */}
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[11px] truncate font-medium ${isCurrent ? "text-[#33ff66]" : "text-[#ccc]"}`}
-                         style={{ fontFamily: "var(--retro-font-ui)" }}>
+                      <p
+                        className={`text-xs font-medium truncate ${
+                          isCurrent ? "text-primary" : ""
+                        }`}
+                      >
                         {song.title}
                       </p>
-                      <div className="flex items-center gap-1.5">
-                        {song.artist && (
-                          <span className="text-[9px] text-[#666] truncate max-w-[45%]"
-                                style={{ fontFamily: "var(--retro-font)" }}>
-                            {song.artist}
-                          </span>
-                        )}
-                        {song.addedByName && (
-                          <span className="text-[9px] text-[#555] truncate"
-                                style={{ fontFamily: "var(--retro-font)" }}>
-                            · {song.addedByName}
-                          </span>
-                        )}
-                      </div>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {song.artist}
+                        {song.addedByName && ` · ${song.addedByName}`}
+                      </p>
                     </div>
-
-                    {/* Votes */}
                     <div className="flex items-center gap-1 shrink-0">
                       <button
-                        className={`retro-vote retro-vote-up ${currentVote === 1 ? "voted" : ""}`}
-                        onClick={() => handleVote(song._id, currentVote === 1 ? 0 : 1)}
+                        className={`h-6 w-6 rounded-md text-[11px] flex items-center justify-center transition-colors ${
+                          currentVote === 1
+                            ? "bg-primary/20 text-primary"
+                            : "text-muted-foreground hover:bg-white/10"
+                        }`}
+                        onClick={() =>
+                          handleVote(song._id, currentVote === 1 ? 0 : 1)
+                        }
                         disabled={!userId}
                       >
                         ▲
                       </button>
                       {room.settings.allowDownvotes && (
                         <button
-                          className={`retro-vote retro-vote-down ${currentVote === -1 ? "voted" : ""}`}
-                          onClick={() => handleVote(song._id, currentVote === -1 ? 0 : -1)}
+                          className={`h-6 w-6 rounded-md text-[11px] flex items-center justify-center transition-colors ${
+                            currentVote === -1
+                              ? "bg-red-500/20 text-red-400"
+                              : "text-muted-foreground hover:bg-white/10"
+                          }`}
+                          onClick={() =>
+                            handleVote(
+                              song._id,
+                              currentVote === -1 ? 0 : -1,
+                            )
+                          }
                           disabled={!userId}
                         >
                           ▼
                         </button>
                       )}
-                      <span className={`text-[10px] w-5 text-center ${
-                        song.score > 0 ? "text-[#66cc77]" : song.score < 0 ? "text-[#cc6666]" : "text-[#666]"
-                      }`} style={{ fontFamily: "var(--retro-font)" }}>
-                        {song.score > 0 ? "+" : ""}{song.score}
+                      <span
+                        className={`text-[11px] w-6 text-center tabular-nums font-medium ${
+                          song.score > 0
+                            ? "text-green-400"
+                            : song.score < 0
+                              ? "text-red-400"
+                              : "text-muted-foreground"
+                        }`}
+                      >
+                        {song.score > 0 ? "+" : ""}
+                        {song.score}
                       </span>
                       {canRemove && (
                         <button
-                          className="retro-vote text-[10px] text-[#666] hover:text-[#cc6666]"
-                          style={{ border: "none", background: "none" }}
+                          className="h-6 w-6 rounded-md text-[11px] text-muted-foreground hover:text-red-400 hover:bg-white/5 flex items-center justify-center transition-colors"
                           onClick={() => handleRemoveSong(song._id)}
                         >
                           ✕
@@ -745,228 +912,181 @@ function EmbedRoom({
           </div>
         )}
 
-        {/* ── Add Song ─────────────────────────────────── */}
+        {/* Add Song */}
         {activeTab === "add" && (
-          <div className="p-3 space-y-3 retro-scroll overflow-y-auto max-h-[260px]">
-            {/* Search */}
-            <form className="flex gap-1.5" onSubmit={handleSearch}>
-              <input
+          <div className="overflow-y-auto max-h-[280px] space-y-4 pr-1">
+            <form className="flex gap-2" onSubmit={handleSearch}>
+              <WInput
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="SEARCH..."
-                className="retro-input flex-1 h-7 text-[12px]"
+                placeholder="Search YouTube…"
               />
-              <button
+              <WBtn
                 type="submit"
+                variant="primary"
                 disabled={isSearching}
-                className="retro-btn retro-btn-primary px-3 py-1 text-[9px]"
+                className="shrink-0"
               >
-                {isSearching ? "..." : "FIND"}
-              </button>
+                {isSearching ? "…" : "Search"}
+              </WBtn>
             </form>
             {searchError && (
-              <p className="text-[10px] text-[#cc6666]" style={{ fontFamily: "var(--retro-font)" }}>
-                {searchError}
-              </p>
+              <p className="text-[11px] text-red-400">{searchError}</p>
             )}
-
-            {/* Search results */}
             {searchResults.length > 0 && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {searchResults.map((track) => (
                   <div
                     key={track.id}
-                    className="flex items-center gap-2 p-1.5 rounded border border-[#333] hover:border-[#444] transition-colors"
+                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/[0.07] transition-colors"
                   >
-                    <div className="retro-thumb h-8 w-8 shrink-0">
-                      {track.thumbnailUrl && (
-                        <img src={track.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                      )}
-                    </div>
+                    {track.thumbnailUrl && (
+                      <img
+                        src={track.thumbnailUrl}
+                        alt=""
+                        className="h-9 w-9 rounded object-cover shrink-0"
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-[#ccc] truncate" style={{ fontFamily: "var(--retro-font-ui)" }}>
+                      <p className="text-xs font-medium truncate">
                         {track.title}
                       </p>
-                      <p className="text-[9px] text-[#666] truncate" style={{ fontFamily: "var(--retro-font)" }}>
+                      <p className="text-[10px] text-muted-foreground truncate">
                         {track.channel}
                       </p>
                     </div>
-                    <button
-                      className="retro-btn retro-btn-primary px-2 py-0.5 text-[8px]"
+                    <WBtn
+                      variant="primary"
                       onClick={() => handleAddFromSearch(track)}
                       disabled={!canAdd || !userId}
+                      className="text-[10px] shrink-0"
                     >
-                      {atSongLimit ? "FULL" : "+ ADD"}
-                    </button>
+                      {atSongLimit ? "Limit" : "Add"}
+                    </WBtn>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="retro-groove" />
+            <div className="h-px bg-white/5" />
 
-            {/* Manual add */}
             <form className="space-y-2" onSubmit={handleAddYouTube}>
-              <p className="text-[9px] text-[#555] uppercase tracking-wider"
-                 style={{ fontFamily: "var(--retro-font-ui)" }}>
-                Direct Link
+              <p className="text-[11px] text-muted-foreground font-medium">
+                Or paste a link
               </p>
-              <input
+              <WInput
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
-                placeholder="YOUTUBE URL OR ID"
-                className="retro-input w-full h-7 text-[12px]"
+                placeholder="YouTube URL or ID"
               />
-              <input
+              <WInput
                 value={youtubeTitle}
                 onChange={(e) => setYoutubeTitle(e.target.value)}
-                placeholder="TRACK TITLE"
-                className="retro-input w-full h-7 text-[12px]"
+                placeholder="Track title"
               />
-              <input
+              <WInput
                 value={youtubeArtist}
                 onChange={(e) => setYoutubeArtist(e.target.value)}
-                placeholder="ARTIST (OPTIONAL)"
-                className="retro-input w-full h-7 text-[12px]"
+                placeholder="Artist (optional)"
               />
-              <button
+              <WBtn
                 type="submit"
+                variant="primary"
                 disabled={isAddingYoutube || !canAdd}
-                className="retro-btn retro-btn-primary w-full py-1.5 text-[9px]"
+                className="w-full h-9"
               >
                 {!canAdd
-                  ? atSongLimit ? "LIMIT REACHED" : "GUEST ADD OFF"
-                  : isAddingYoutube ? "LOADING..." : "INSERT TRACK"}
-              </button>
+                  ? atSongLimit
+                    ? "Song limit reached"
+                    : "Guest add disabled"
+                  : isAddingYoutube
+                    ? "Adding…"
+                    : "Add track"}
+              </WBtn>
               {youtubeError && (
-                <p className="text-[10px] text-[#cc6666]" style={{ fontFamily: "var(--retro-font)" }}>
-                  {youtubeError}
-                </p>
+                <p className="text-[11px] text-red-400">{youtubeError}</p>
               )}
             </form>
           </div>
         )}
 
-        {/* ── Admin / Host controls ────────────────────── */}
+        {/* Admin */}
         {activeTab === "admin" && isAdmin && (
-          <div className="p-3 space-y-3 retro-scroll overflow-y-auto max-h-[260px]">
-            <div className="flex items-center gap-1.5">
-              <div className="retro-led retro-led-amber" />
-              <span className="retro-amber-text text-xs">HOST CONTROLS</span>
-            </div>
-
-            {/* Max songs */}
-            <div className="space-y-1">
-              <p className="text-[9px] text-[#666] uppercase tracking-wider"
-                 style={{ fontFamily: "var(--retro-font-ui)" }}>
-                Max Songs / User
-              </p>
-              <div className="flex items-center gap-1.5">
-                <input
-                  className="retro-input w-16 h-6 text-[12px]"
+          <div className="overflow-y-auto max-h-[280px] space-y-4 pr-1">
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Max songs per user</p>
+              <div className="flex gap-2">
+                <WInput
                   type="number"
                   min={0}
                   placeholder={String(maxSongsPerUser)}
                   value={settingsMaxSongs}
                   onChange={(e) => setSettingsMaxSongs(e.target.value)}
+                  className="!w-20"
                 />
-                <button
-                  className="retro-btn px-2 py-0.5 text-[8px]"
-                  onClick={handleUpdateMaxSongs}
-                >
-                  SET
-                </button>
+                <WBtn onClick={handleUpdateMaxSongs}>Update</WBtn>
               </div>
             </div>
 
-            <div className="retro-groove" />
+            <div className="h-px bg-white/5" />
 
-            {/* Transfer Host */}
-            <div className="space-y-1">
-              <p className="text-[9px] text-[#666] uppercase tracking-wider"
-                 style={{ fontFamily: "var(--retro-font-ui)" }}>
-                Transfer Host
-              </p>
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Transfer host</p>
               {contributors.length === 0 ? (
-                <p className="text-[10px] text-[#555]" style={{ fontFamily: "var(--retro-font)" }}>
+                <p className="text-[11px] text-muted-foreground">
                   No other users yet
                 </p>
               ) : (
-                <div className="flex items-center gap-1.5">
+                <div className="flex gap-2">
                   <select
-                    className="retro-input flex-1 h-6 text-[11px]"
+                    className="h-9 flex-1 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-foreground outline-none"
                     value={transferTarget}
                     onChange={(e) => setTransferTarget(e.target.value)}
                   >
                     <option value="">Select user</option>
                     {contributors.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
                     ))}
                   </select>
-                  <button
-                    className="retro-btn px-2 py-0.5 text-[8px]"
+                  <WBtn
                     onClick={handleTransferHost}
                     disabled={!transferTarget}
                   >
-                    GO
-                  </button>
+                    Transfer
+                  </WBtn>
                 </div>
               )}
             </div>
 
-            <div className="retro-groove" />
+            <div className="h-px bg-white/5" />
 
-            {/* Destroy */}
-            <div className="space-y-1">
-              <p className="text-[9px] text-[#cc6666] uppercase tracking-wider"
-                 style={{ fontFamily: "var(--retro-font-ui)" }}>
-                Danger
-              </p>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-red-400">Danger zone</p>
               {confirmDestroy ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="retro-amber-text text-[10px]">Confirm?</span>
-                  <button
-                    className="retro-btn retro-btn-danger px-2 py-0.5 text-[8px]"
-                    onClick={handleDestroyRoom}
-                  >
-                    YES
-                  </button>
-                  <button
-                    className="retro-btn px-2 py-0.5 text-[8px]"
-                    onClick={() => setConfirmDestroy(false)}
-                  >
-                    NO
-                  </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs">Are you sure?</span>
+                  <WBtn variant="danger" onClick={handleDestroyRoom}>
+                    Yes, destroy
+                  </WBtn>
+                  <WBtn onClick={() => setConfirmDestroy(false)}>Cancel</WBtn>
                 </div>
               ) : (
-                <button
-                  className="retro-btn retro-btn-danger px-2 py-0.5 text-[8px]"
+                <WBtn
+                  variant="danger"
                   onClick={() => setConfirmDestroy(true)}
                 >
-                  DESTROY ROOM
-                </button>
+                  Destroy room
+                </WBtn>
               )}
             </div>
           </div>
         )}
       </div>
 
-      {/* ── Error display ──────────────────────────────── */}
-      {error && (
-        <div className="flex items-center gap-1.5 px-1">
-          <div className="retro-led retro-led-red" />
-          <p className="text-[10px] text-[#cc6666]" style={{ fontFamily: "var(--retro-font)" }}>
-            {error}
-          </p>
-        </div>
-      )}
-
-      {/* ── Bottom bezel ───────────────────────────────── */}
-      <div className="flex items-center justify-center pt-0.5">
-        <span className="retro-brand">
-          powered by synesthesia
-        </span>
-      </div>
+      {/* Error */}
+      {error && <p className="text-[11px] text-red-400 px-1">{error}</p>}
     </div>
   );
 }
