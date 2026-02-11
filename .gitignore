@@ -41,6 +41,8 @@ __pycache__/
 venv/
 
 # system
-Thumbs.db
+Thumbs.db\
 
 browser.json
+
+C:\Users\ASUS\Desktop\synesthesia\convex\_generated
