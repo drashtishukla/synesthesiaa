@@ -115,8 +115,6 @@ export default function RoomPage({ params }: RoomPageProps) {
   const [transferTarget, setTransferTarget] = useState("");
   const [settingsMaxSongs, setSettingsMaxSongs] = useState<string>("");
 
-
-
   // Username prompt state
   const [nameInput, setNameInput] = useState("");
 
@@ -158,13 +156,16 @@ export default function RoomPage({ params }: RoomPageProps) {
   }, [songs, userId]);
 
   // ── Presence ──────────────────────────────────────────────────────────
-  const userCount = useQuery(api.presence.list, room ? { roomId: room._id } : "skip");
+  const userCount = useQuery(
+    api.presence.list,
+    room ? { roomId: room._id } : "skip",
+  );
   const heartbeat = useMutation(api.presence.heartbeat);
   const leaveRoom = useMutation(api.presence.leave);
 
   useEffect(() => {
     if (!room || !userId) return;
-    
+
     // Initial heartbeat
     heartbeat({ roomId: room._id, userId, userName: userName ?? undefined });
 
@@ -226,8 +227,6 @@ export default function RoomPage({ params }: RoomPageProps) {
   const displayName = userName ?? "Anonymous";
 
   // ── Handlers ──────────────────────────────────────────────────────────
-
-
 
   const handleAddYouTube = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -356,9 +355,7 @@ export default function RoomPage({ params }: RoomPageProps) {
     try {
       await removeSong({ songId, userId });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to remove song."
-      );
+      setError(err instanceof Error ? err.message : "Unable to remove song.");
     }
   };
 
@@ -406,9 +403,7 @@ export default function RoomPage({ params }: RoomPageProps) {
       });
       setTransferTarget("");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to transfer host."
-      );
+      setError(err instanceof Error ? err.message : "Unable to transfer host.");
     }
   };
 
@@ -425,7 +420,7 @@ export default function RoomPage({ params }: RoomPageProps) {
       setSettingsMaxSongs("");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to update settings."
+        err instanceof Error ? err.message : "Unable to update settings.",
       );
     }
   };
@@ -488,17 +483,13 @@ export default function RoomPage({ params }: RoomPageProps) {
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">
-                  👥 {userCount ?? 1}
-                </Badge>
+                <Badge variant="secondary">👥 {userCount ?? 1}</Badge>
                 <Badge variant="default">Queue {songs?.length ?? 0}</Badge>
                 <Badge variant="outline">
                   Downvotes {room.settings.allowDownvotes ? "on" : "off"}
                 </Badge>
                 {maxSongsPerUser > 0 ? (
-                  <Badge variant="outline">
-                    Limit {maxSongsPerUser}/user
-                  </Badge>
+                  <Badge variant="outline">Limit {maxSongsPerUser}/user</Badge>
                 ) : null}
                 {!allowGuestAdd ? (
                   <Badge variant="outline">Guest add off</Badge>
@@ -530,7 +521,10 @@ export default function RoomPage({ params }: RoomPageProps) {
             {currentSong ? (
               <div className="space-y-3">
                 {/* Thumbnail + song info */}
-                <div key={currentSong._id} className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                <div
+                  key={currentSong._id}
+                  className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/40"
+                >
                   <img
                     src={`https://img.youtube.com/vi/${currentSong.providerId}/hqdefault.jpg`}
                     alt={currentSong.title}
@@ -599,13 +593,20 @@ export default function RoomPage({ params }: RoomPageProps) {
                   const currentVote = voteMap.get(song._id) ?? 0;
                   const canRemove =
                     isAdmin || (userId && song.addedBy === userId);
+                  const isCurrent = song._id === room.currentSongId;
                   return (
                     <div
                       key={song._id}
-                      className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                      className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border px-4 py-3 ${
+                        isCurrent
+                          ? "border-blue-500 bg-blue-500/10 shadow-lg" // highlight style
+                          : "border-white/10 bg-white/5"
+                      }`}
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold">
+                        <p
+                          className={`font-semibold ${isCurrent ? "text-blue-300" : ""}`}
+                        >
                           {index + 1}. {song.title}
                         </p>
                         <div className="text-sm text-muted-foreground">
@@ -615,9 +616,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                            )}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {song.provider === "youtube"
-                            ? "YouTube"
-                            : "Custom"}
+                          {song.provider === "youtube" ? "YouTube" : "Custom"}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -639,10 +638,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                               currentVote === -1 ? "secondary" : "outline"
                             }
                             onClick={() =>
-                              handleVote(
-                                song._id,
-                                currentVote === -1 ? 0 : -1
-                              )
+                              handleVote(song._id, currentVote === -1 ? 0 : -1)
                             }
                             disabled={!userId}
                             type="button"
@@ -661,7 +657,8 @@ export default function RoomPage({ params }: RoomPageProps) {
                           }
                         >
                           {song.score > 0 ? "+" : ""}
-                          {song.score} vote{song.score === 1 || song.score === -1 ? "" : "s"}
+                          {song.score} vote
+                          {song.score === 1 || song.score === -1 ? "" : "s"}
                         </Badge>
                         {canRemove ? (
                           <Button
@@ -876,8 +873,6 @@ export default function RoomPage({ params }: RoomPageProps) {
                       </p>
                     ) : null}
                   </form>
-
-
                 </div>
               </CardContent>
             </Card>
