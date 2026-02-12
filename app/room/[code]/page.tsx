@@ -32,37 +32,6 @@ function createProviderId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function extractYouTubeId(input: string) {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-
-  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
-    return trimmed;
-  }
-
-  try {
-    const url = new URL(trimmed);
-    const host = url.hostname.replace("www.", "");
-    if (host === "youtu.be") {
-      return url.pathname.replace("/", "");
-    }
-    if (host.endsWith("youtube.com")) {
-      const v = url.searchParams.get("v");
-      if (v) return v;
-      if (url.pathname.startsWith("/embed/")) {
-        return url.pathname.split("/embed/")[1] ?? null;
-      }
-      if (url.pathname.startsWith("/shorts/")) {
-        return url.pathname.split("/shorts/")[1] ?? null;
-      }
-    }
-  } catch (err) {
-    return null;
-  }
-
-  return null;
-}
-
 export default function RoomPage({ params }: RoomPageProps) {
   const code = params.code.toUpperCase();
   const router = useRouter();
@@ -89,11 +58,6 @@ export default function RoomPage({ params }: RoomPageProps) {
 
   const [error, setError] = useState<string | null>(null);
 
-  const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [youtubeTitle, setYoutubeTitle] = useState("");
-  const [youtubeArtist, setYoutubeArtist] = useState("");
-  const [youtubeError, setYoutubeError] = useState<string | null>(null);
-  const [isAddingYoutube, setIsAddingYoutube] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<YouTubeResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -168,7 +132,9 @@ export default function RoomPage({ params }: RoomPageProps) {
   const togglePause = useMutation(api.rooms.togglePause);
 
   // Stable handler for when a song finishes — works even in background tabs
+  // Only the host should advance; other clients get the update via subscription.
   const handleSongEnd = useCallback(() => {
+    if (!isHost) return;
     if (advancingRef.current) return;
     advancingRef.current = true;
     setYtPlayer(null);
@@ -179,7 +145,7 @@ export default function RoomPage({ params }: RoomPageProps) {
     } else {
       advancingRef.current = false;
     }
-  }, [room, advanceSong]);
+  }, [room, isHost, advanceSong]);
 
   // Reset advancing flag when the current song changes (new song loaded)
   useEffect(() => {
@@ -320,53 +286,6 @@ export default function RoomPage({ params }: RoomPageProps) {
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
-  const handleAddYouTube = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!room) {
-      setYoutubeError("Room not ready yet.");
-      return;
-    }
-    if (!userId) {
-      setYoutubeError("Generating your user id. Try again in a second.");
-      return;
-    }
-
-    const id = extractYouTubeId(youtubeUrl);
-    if (!id) {
-      setYoutubeError("Paste a valid YouTube URL or video ID.");
-      return;
-    }
-
-    const name = youtubeTitle.trim();
-    if (!name) {
-      setYoutubeError("Add a title for this track.");
-      return;
-    }
-
-    setYoutubeError(null);
-    setIsAddingYoutube(true);
-    try {
-      await addSong({
-        roomId: room._id,
-        provider: "youtube",
-        providerId: id,
-        title: name,
-        artist: youtubeArtist.trim() || undefined,
-        addedBy: userId,
-        addedByName: displayName,
-      });
-      setYoutubeUrl("");
-      setYoutubeTitle("");
-      setYoutubeArtist("");
-    } catch (err) {
-      setYoutubeError(
-        err instanceof Error ? err.message : "Unable to add YouTube track.",
-      );
-    } finally {
-      setIsAddingYoutube(false);
-    }
-  };
-
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = searchQuery.trim();
@@ -397,15 +316,15 @@ export default function RoomPage({ params }: RoomPageProps) {
 
   const handleAddFromSearch = async (track: YouTubeResult) => {
     if (!room || !userId) {
-      setYoutubeError("Room or user not ready yet.");
+      setSearchError("Room or user not ready yet.");
       return;
     }
     if (!allowGuestAdd && !isAdmin) {
-      setYoutubeError("Guests cannot add songs in this room.");
+      setSearchError("Guests cannot add songs in this room.");
       return;
     }
 
-    setYoutubeError(null);
+    setSearchError(null);
     try {
       await addSong({
         roomId: room._id,
@@ -418,8 +337,8 @@ export default function RoomPage({ params }: RoomPageProps) {
         addedByName: displayName,
       });
     } catch (err) {
-      setYoutubeError(
-        err instanceof Error ? err.message : "Unable to add YouTube track.",
+      setSearchError(
+        err instanceof Error ? err.message : "Unable to add track.",
       );
     }
   };
@@ -660,12 +579,10 @@ export default function RoomPage({ params }: RoomPageProps) {
                   <ReactionOverlay roomId={room._id} userId={userId} />
                 </div>
 
-                {/* Audio Visualizer — host only */}
-                {isHost && (
-                  <div className="glass rounded-2xl px-3 py-2">
-                    <AudioVisualizer isPlaying={!room?.isPaused} />
-                  </div>
-                )}
+                {/* Audio Visualizer */}
+                <div className="glass rounded-2xl px-3 py-2">
+                  <AudioVisualizer isPlaying={!room?.isPaused} />
+                </div>
 
                 {/* Hidden YouTube player */}
                 <div className="fixed -left-[9999px] top-0 opacity-0 pointer-events-none" aria-hidden>
@@ -1050,41 +967,6 @@ export default function RoomPage({ params }: RoomPageProps) {
                 </div>
               )}
 
-              {/* Divider */}
-<div className="h-px bg-white/[0.06] my-5" />
-
-              {/* Manual add */}
-              <form className="space-y-3" onSubmit={handleAddYouTube}>
-                <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3">Or add manually</p>
-                <input
-                  value={youtubeUrl}
-                  onChange={(e) => setYoutubeUrl(e.target.value)}
-                  placeholder="YouTube URL or Video ID"
-                  className="w-full h-10 rounded-xl bg-white/[0.04] border border-white/[0.06] px-3.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary/30 transition-colors"
-                />
-                <input
-                  value={youtubeTitle}
-                  onChange={(e) => setYoutubeTitle(e.target.value)}
-                  placeholder="Track title"
-                  className="w-full h-10 rounded-xl bg-white/[0.04] border border-white/[0.06] px-3.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary/30 transition-colors"
-                />
-                <input
-                  value={youtubeArtist}
-                  onChange={(e) => setYoutubeArtist(e.target.value)}
-                  placeholder="Artist / Channel (optional)"
-                  className="w-full h-10 rounded-xl bg-white/[0.04] border border-white/[0.06] px-3.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary/30 transition-colors"
-                />
-                <button
-                  type="submit"
-                  disabled={isAddingYoutube || !canAdd}
-                  className="w-full h-10 rounded-xl bg-secondary hover:brightness-110 text-white text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  {!canAdd
-                    ? atSongLimit ? "Song limit reached" : "Guest add disabled"
-                    : isAddingYoutube ? "Adding…" : "Add track"}
-                </button>
-                {youtubeError && <p className="text-xs text-red-400/80">{youtubeError}</p>}
-              </form>
             </div>
           </section>
         </div>
