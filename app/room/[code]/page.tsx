@@ -59,6 +59,7 @@ export default function RoomPage({ params }: RoomPageProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchResults, setSearchResults] = useState<YouTubeResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -87,7 +88,26 @@ export default function RoomPage({ params }: RoomPageProps) {
     getPlayerState: () => number;
     setVolume: (v: number) => void;
     getVolume: () => number;
+    seekTo: (seconds: number, allowSeekAhead?: boolean) => void;
   } | null>(null);
+
+  // Track playback progress for the visualizer seek bar
+  const [seekProgress, setSeekProgress] = useState(0);
+  const seekRafRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!ytPlayer) return;
+    const tick = () => {
+      try {
+        const cur = ytPlayer.getCurrentTime?.() ?? 0;
+        const dur = ytPlayer.getDuration?.() ?? 0;
+        setSeekProgress(dur > 0 ? cur / dur : 0);
+      } catch { /* player not ready */ }
+      seekRafRef.current = requestAnimationFrame(tick);
+    };
+    seekRafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(seekRafRef.current);
+  }, [ytPlayer]);
 
   // Ref to prevent duplicate advance calls when tab is backgrounded
   const advancingRef = useRef(false);
@@ -496,7 +516,7 @@ export default function RoomPage({ params }: RoomPageProps) {
               <div className="flex items-center gap-3 mb-1.5">
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{room.name}</h1>
                 {isAdmin && (
-                <span className="px-2.5 py-0.5 text-[11px] font-bold bg-secondary text-white border border-secondary uppercase tracking-widest">
+                <span className="px-2.5 py-0.5 text-[11px] font-bold bg-primary/20 text-primary border border-primary/30 uppercase tracking-widest rounded-lg">
                     Host
                   </span>
                 )}
@@ -506,8 +526,8 @@ export default function RoomPage({ params }: RoomPageProps) {
                 <span className="w-1 h-1 rounded-full bg-white/15" />
                 <span className="flex items-center gap-1.5">
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                   </span>
                   {userCount ?? 1} listening
                 </span>
@@ -520,17 +540,17 @@ export default function RoomPage({ params }: RoomPageProps) {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {!allowGuestAdd && (
-                <span className="px-2.5 py-1 text-[10px] font-medium bg-destructive text-black border border-destructive">Guest add off</span>
+                <span className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">Guest add off</span>
               )}
               {room.settings.allowDownvotes && (
-                <span className="px-2.5 py-1 text-[10px] font-medium bg-accent text-black border border-accent">Downvotes on</span>
+                <span className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-primary/10 text-primary border border-primary/20">Downvotes on</span>
               )}
               {maxSongsPerUser > 0 && (
-                <span className="px-2.5 py-1 text-[10px] font-medium bg-secondary text-white border border-secondary">{maxSongsPerUser}/user</span>
+                <span className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-white/[0.06] text-white/50 border border-white/[0.08]">{maxSongsPerUser}/user</span>
               )}
               <button
                 onClick={handleLeaveRoom}
-                className="px-3.5 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 border border-red-600 transition-all duration-200"
+                className="px-3.5 py-1.5 text-xs font-medium text-white/70 bg-white/[0.06] hover:bg-red-500/20 hover:text-red-400 border border-white/[0.08] hover:border-red-500/20 rounded-xl transition-all duration-200"
               >
                 Leave
               </button>
@@ -579,9 +599,20 @@ export default function RoomPage({ params }: RoomPageProps) {
                   <ReactionOverlay roomId={room._id} userId={userId} />
                 </div>
 
-                {/* Audio Visualizer */}
+                {/* Audio Visualizer — admin can click to seek */}
                 <div className="glass rounded-2xl px-3 py-2">
-                  <AudioVisualizer isPlaying={!room?.isPaused} />
+                  <AudioVisualizer
+                    isPlaying={!room?.isPaused}
+                    progress={seekProgress}
+                    canSeek={isAdmin}
+                    onSeek={(fraction) => {
+                      if (!ytPlayer) return;
+                      const dur = ytPlayer.getDuration?.() ?? 0;
+                      if (dur > 0) {
+                        ytPlayer.seekTo(fraction * dur, true);
+                      }
+                    }}
+                  />
                 </div>
 
                 {/* Hidden YouTube player */}
@@ -742,7 +773,7 @@ export default function RoomPage({ params }: RoomPageProps) {
             {/* Queue */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.25em] text-accent">Up Next</h2>
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.25em] text-primary">Up Next</h2>
                 <span className="text-[11px] text-white/15 tabular-nums">
                   {queueSongs.length} tracks{isAdmin ? " · Drag to reorder" : ""}
                 </span>
@@ -914,31 +945,54 @@ export default function RoomPage({ params }: RoomPageProps) {
             )}
 
             {/* Add Song */}
-            <div className="glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 border-l-4 !border-l-secondary">
-              <h3 className="text-sm font-semibold mb-5 text-secondary">Add a song</h3>
-
-              {/* Search */}
-              <form className="space-y-3 mb-6" onSubmit={handleSearch}>
-                <div className="relative">
-                  <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div className="glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 border-l-4 !border-l-primary">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-sm font-semibold text-primary">Add a song</h3>
+                {/* Search toggle button */}
+                <button
+                  type="button"
+                  onClick={() => setSearchExpanded((v) => !v)}
+                  className={`flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-300 ${
+                    searchExpanded
+                      ? "bg-primary/20 text-primary border border-primary/30"
+                      : "bg-white/[0.06] text-white/40 hover:text-primary hover:bg-primary/10 border border-white/[0.08] hover:border-primary/20"
+                  }`}
+                  title="Search"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
-                  <input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search YouTube…"
-                    className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/[0.06] pl-10 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/10 transition-all"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSearching}
-                  className="w-full h-10 rounded-xl bg-primary hover:brightness-110 text-white text-sm font-bold uppercase tracking-wider disabled:opacity-40 transition-all duration-200 border border-primary"
-                >
-                  {isSearching ? "Searching…" : "Search"}
                 </button>
-                {searchError && <p className="text-xs text-red-400/80">{searchError}</p>}
-              </form>
+              </div>
+
+              {/* Expandable search area */}
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-out ${
+                  searchExpanded ? "max-h-[500px] opacity-100 mb-4" : "max-h-0 opacity-0"
+                }`}
+              >
+                <form className="space-y-3" onSubmit={handleSearch}>
+                  <div className="relative">
+                    <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search YouTube…"
+                      className="w-full h-11 rounded-xl bg-white/[0.04] border border-white/[0.06] pl-10 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/10 transition-all"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSearching}
+                    className="w-full h-10 rounded-xl bg-primary hover:brightness-110 text-white text-sm font-bold uppercase tracking-wider disabled:opacity-40 transition-all duration-200 border border-primary"
+                  >
+                    {isSearching ? "Searching…" : "Search"}
+                  </button>
+                  {searchError && <p className="text-xs text-red-400/80">{searchError}</p>}
+                </form>
+              </div>
 
               {/* Search results */}
               {searchResults.length > 0 && (
@@ -958,7 +1012,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                         type="button"
                         onClick={() => handleAddFromSearch(track)}
                         disabled={!canAdd || !userId}
-                        className="shrink-0 h-8 px-3.5 rounded-lg text-xs font-bold bg-secondary hover:brightness-110 text-white border border-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
+                        className="shrink-0 h-8 px-3.5 rounded-lg text-xs font-bold bg-primary hover:brightness-110 text-white border border-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
                       >
                         {atSongLimit ? "Limit" : "+ Add"}
                       </button>
@@ -973,15 +1027,15 @@ export default function RoomPage({ params }: RoomPageProps) {
 
         {/* ── Admin Panel ────────────────────────────────────────────── */}
         {isAdmin && (
-          <section className="mt-8 glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 !border-secondary">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-secondary mb-5">
-              <span className="w-5 h-5 rounded-md bg-secondary flex items-center justify-center text-[10px] text-white">★</span>
+          <section className="mt-8 glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 !border-primary/30">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-primary mb-5">
+              <span className="w-5 h-5 rounded-md bg-primary flex items-center justify-center text-[10px] text-white">★</span>
               Host Controls
             </h3>
             <div className="grid gap-6 sm:grid-cols-3">
               {/* Settings */}
               <div className="space-y-3">
-                <p className="text-xs font-medium text-accent uppercase tracking-wider">Settings</p>
+                <p className="text-xs font-medium text-primary uppercase tracking-wider">Settings</p>
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
                     <label className="text-[11px] text-white/25 mb-1 block">Max songs/user</label>
@@ -1006,7 +1060,7 @@ export default function RoomPage({ params }: RoomPageProps) {
 
               {/* Transfer Host */}
               <div className="space-y-3">
-                <p className="text-xs font-medium text-accent uppercase tracking-wider">Transfer Host</p>
+                <p className="text-xs font-medium text-primary uppercase tracking-wider">Transfer Host</p>
                 {contributors.length === 0 ? (
                   <p className="text-[11px] text-white/20">No other contributors yet.</p>
                 ) : (
