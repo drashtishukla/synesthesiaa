@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { Oxanium, Source_Code_Pro } from "next/font/google";
+import { Oxanium } from "next/font/google";
 import "./globals.css";
 import { ConvexClientProvider } from "./providers";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const display = Oxanium({
   subsets: ["latin"],
@@ -27,9 +29,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${display.variable} ${body.variable}`}>
-        <ConvexClientProvider>{children}</ConvexClientProvider>
+        <ThemeProvider>
+          <ThemeToggle />
+          <ConvexClientProvider>{children}</ConvexClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -2,28 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Minimal orange scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(24, 100%, 50%, 0.3);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(24, 100%, 50%, 0.55);
+}
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(24, 100%, 50%, 0.3) transparent;
+}
+
 @layer base {
   :root {
-    --background: 0 0% 10%;
-    --foreground: 0 0% 88%;
-    --card: 0 0% 16%;
-    --card-foreground: 0 0% 88%;
-    --popover: 0 0% 16%;
-    --popover-foreground: 0 0% 88%;
-    --primary: 1 77% 55%;
+    --background: 0 0% 4%;
+    --foreground: 0 0% 90%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 90%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 90%;
+    --primary: 24 100% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 92 48% 42%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 63%;
-    --accent: 207 89% 68%;
+    --secondary: 0 0% 20%;
+    --secondary-foreground: 0 0% 80%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 24 100% 50%;
     --accent-foreground: 0 0% 0%;
-    --destructive: 38 100% 50%;
-    --destructive-foreground: 0 0% 0%;
-    --border: 0 0% 29%;
-    --input: 0 0% 29%;
-    --ring: 1 77% 55%;
-    --radius: 0rem;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 24 100% 50%;
+    --radius: 1rem;
+  }
+
+  .light {
+    --background: 30 20% 97%;
+    --foreground: 0 0% 10%;
+    --card: 30 15% 95%;
+    --card-foreground: 0 0% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 24 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 10% 90%;
+    --secondary-foreground: 0 0% 30%;
+    --muted: 30 10% 92%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 24 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 10% 88%;
+    --input: 30 10% 88%;
+    --ring: 24 100% 50%;
+    --radius: 1rem;
   }
 
   * {
@@ -43,29 +87,33 @@
 }
 
 @layer utilities {
-  .bg-grid {
-    background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-    background-size: 32px 32px;
+  .glass {
+    background: rgba(18, 18, 18, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
   }
 
-  .glass {
-    background: rgba(42, 42, 42, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+  .light .glass {
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.08);
   }
 
   .glass-hover:hover {
-    background: rgba(50, 50, 50, 0.9);
-    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(26, 26, 26, 0.95);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .light .glass-hover:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.12);
   }
 
   .glow-primary {
-    box-shadow: 0 0 30px -8px rgba(229, 57, 53, 0.25);
+    box-shadow: 0 0 40px -10px rgba(255, 140, 0, 0.3);
   }
 
   .text-glow {
-    text-shadow: 0 0 30px rgba(229, 57, 53, 0.35);
+    text-shadow: 0 0 30px rgba(255, 140, 0, 0.25);
   }
 
   .safe-bottom {

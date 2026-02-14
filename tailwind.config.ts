@@ -52,16 +52,17 @@ const config: Config = {
         body: ["var(--font-body)", "Oxanium", "system-ui", "sans-serif"],
       },
       borderRadius: {
-        "3xl": "0px",
-        "2xl": "0px",
-        xl: "0px",
-        lg: "0px",
-        md: "0px",
-        sm: "0px",
-        DEFAULT: "0px",
+        "3xl": "1.5rem",
+        "2xl": "1rem",
+        xl: "0.75rem",
+        lg: "0.5rem",
+        md: "0.375rem",
+        sm: "0.25rem",
+        DEFAULT: "0.5rem",
       },
       boxShadow: {
-        glow: "0 0 30px rgba(229, 57, 53, 0.2)",
+        glow: "0 0 40px rgba(255, 140, 0, 0.15)",
+        "glow-lg": "0 0 60px rgba(255, 140, 0, 0.2)",
       },
       keyframes: {
         float: {

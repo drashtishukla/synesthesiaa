@@ -34,8 +34,8 @@ function WInput({
   return (
     <input
       className={
-        "h-9 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-foreground " +
-        "placeholder:text-muted-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25 " +
+        "h-9 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-foreground " +
+        "placeholder:text-white/20 outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 " +
         "transition-colors " +
         className
       }
@@ -53,15 +53,15 @@ function WBtn({
   variant?: "default" | "primary" | "danger" | "ghost";
 }) {
   const base =
-    "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium transition-colors " +
+    "inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200 " +
     "disabled:opacity-40 disabled:pointer-events-none ";
   const variants: Record<string, string> = {
     default:
-      "border border-white/10 bg-white/5 text-foreground hover:bg-white/10",
-    primary: "bg-primary text-primary-foreground hover:bg-primary/80",
+      "border border-white/[0.08] bg-white/[0.04] text-foreground hover:bg-white/[0.08]",
+    primary: "bg-primary text-white hover:brightness-110 shadow-sm shadow-primary/20",
     danger:
-      "bg-destructive/10 text-red-400 border border-red-500/20 hover:bg-destructive/20",
-    ghost: "text-muted-foreground hover:text-foreground hover:bg-white/5",
+      "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20",
+    ghost: "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
   };
   return (
     <button className={base + variants[variant] + " " + className} {...props}>
@@ -229,7 +229,7 @@ function EmbedLobby({
       </div>
 
       {/* Create room */}
-      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+      <div className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-4 space-y-3">
         <h3 className="text-sm font-semibold">Start a room</h3>
         <form className="space-y-2.5" onSubmit={handleCreate}>
           <WInput
@@ -261,7 +261,7 @@ function EmbedLobby({
       </div>
 
       {/* Join room */}
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4 space-y-3">
         <h3 className="text-sm font-semibold">Join a room</h3>
         <form className="flex gap-2" onSubmit={handleJoin}>
           <WInput
@@ -581,7 +581,7 @@ function EmbedRoom({
   return (
     <div className="flex flex-col w-full max-w-[420px] mx-auto">
       {/* ═══ Mini Player Card ═══ */}
-      <div className="bg-[#1e1e2e] rounded-2xl overflow-hidden shadow-2xl shadow-black/40">
+      <div className="bg-[#121212] rounded-2xl overflow-hidden shadow-2xl shadow-black/50 border border-white/[0.04]">
         {/* ── Now Playing Row ─── */}
         <div className="flex items-center gap-3 p-3">
           {/* Album Art */}
@@ -773,7 +773,7 @@ function EmbedRoom({
 
       {/* ═══ Expandable Panel ═══ */}
       {expanded && (
-        <div className="bg-[#1a1a2a] rounded-2xl mt-2 overflow-hidden shadow-lg shadow-black/30">
+        <div className="bg-[#0e0e0e] rounded-2xl mt-2 overflow-hidden shadow-lg shadow-black/40 border border-white/[0.04]">
           {/* Room info bar */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-white/5">
             <div className="flex items-center gap-2 min-w-0">
@@ -786,9 +786,9 @@ function EmbedRoom({
                 {room.code}
                 <span className="text-[9px] ml-0.5">{copied ? "✓" : "⎘"}</span>
               </button>
-              <span className="text-[10px] text-primary/70 font-medium">{userCount ?? 1} online</span>
+              <span className="text-[10px] text-primary font-medium">{userCount ?? 1} online</span>
               {isAdmin && (
-                <span className="bg-amber-500/15 px-1.5 py-0.5 rounded text-[9px] font-medium text-amber-400">Host</span>
+                <span className="bg-primary/15 px-1.5 py-0.5 rounded-md text-[9px] font-medium text-primary">Host</span>
               )}
             </div>
           </div>
@@ -887,7 +887,7 @@ function EmbedRoom({
                 {searchResults.length > 0 && (
                   <div className="space-y-1">
                     {searchResults.slice(0, 3).map((track) => (
-                      <div key={track.id} className="flex items-center gap-2 rounded-lg bg-white/5 p-1.5 hover:bg-white/[0.07] transition-colors">
+                      <div key={track.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] p-1.5 hover:bg-white/[0.06] border border-white/[0.04] transition-colors">
                         {track.thumbnailUrl && (
                           <img src={track.thumbnailUrl} alt="" className="h-8 w-8 rounded object-cover shrink-0" />
                         )}
