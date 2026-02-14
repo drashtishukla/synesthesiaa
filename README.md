@@ -2,7 +2,7 @@
 
 Synesthesia is a real-time, crowd-controlled music queue. Hosts create a room, guests join via link or QR code, and voting decides what plays next. The queue updates instantly for everyone in the room.
 
-## Features
+## Features 
 - Live rooms with shared queues
 - Add songs and vote (up/down)
 - Real-time ordering driven by votes
