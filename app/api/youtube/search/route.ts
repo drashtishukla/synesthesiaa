@@ -165,11 +165,12 @@ async function searchWithYouTubeApi(query: string) {
       continue;
     }
 
-    // Any other error → don't rotate, just throw.
+    // Any other error (400 invalid key, 500, etc.) → skip this key, try next.
     const message = await response.text();
-    throw new Error(
-      `YouTube search failed (HTTP ${response.status}): ${message}`
+    errors.push(
+      `Key #${idx + 1} failed (HTTP ${response.status}): ${message}`
     );
+    continue;
   }
 
   // All keys exhausted – advance index anyway for next time.
