@@ -170,6 +170,7 @@ async function searchWithYouTubeApi(query: string) {
     errors.push(
       `Key #${idx + 1} failed (HTTP ${response.status}): ${message}`
     );
+    continue;
   }
 
   // All keys exhausted – advance index anyway for next time.
